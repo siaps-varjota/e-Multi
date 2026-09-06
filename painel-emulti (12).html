@@ -1,0 +1,1022 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Painel eMulti — Indicadores M1 e M2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --paper:#F1F4EE;
+    --surface:#FFFFFF;
+    --ink:#13241F;
+    --ink-soft:#51605A;
+    --line:#DCE4D6;
+    --header-bg:#153F35;
+    --header-bg-2:#0F2E27;
+    --header-ink:#EEF3EA;
+    --header-soft:#9FC0AE;
+    --pill-regular:#B5474B;
+    --pill-suficiente:#C68A3D;
+    --pill-bom:#6B8F71;
+    --pill-otimo:#2F6F5E;
+    --arc-regular:#DC4C4C;
+    --arc-suficiente:#F2A93B;
+    --arc-bom:#4CAF6D;
+    --arc-otimo:#3B7DDD;
+    --radius:10px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    font-family:'Inter',sans-serif;
+    background:var(--paper);
+    color:var(--ink);
+    font-variant-numeric:tabular-nums;
+    line-height:1.5;
+  }
+  h1,h2,h3,.serif{font-family:'Fraunces',serif;}
+
+  /* ---------- Topbar ---------- */
+  .topbar{
+    background:linear-gradient(120deg,var(--header-bg),var(--header-bg-2));
+    color:var(--header-ink);
+    padding:22px 40px;
+    display:flex;justify-content:space-between;align-items:flex-start;gap:24px;flex-wrap:wrap;
+    position:sticky;top:0;z-index:5;
+  }
+  .topbar-left .kicker{
+    font-size:11.5px;letter-spacing:1.4px;text-transform:uppercase;
+    color:var(--header-soft);margin:0 0 4px;font-weight:600;
+  }
+  .topbar-left h1{font-size:25px;font-weight:600;margin:0 0 4px;}
+  .topbar-left .tagline{margin:0;font-size:13px;color:var(--header-soft);max-width:46ch;}
+  .topbar-right{display:flex;align-items:center;gap:18px;flex-wrap:wrap;}
+  .topbar-meta{text-align:right;}
+  .topbar-meta .eq{font-size:15px;font-weight:600;}
+  .topbar-meta .dt{font-size:12px;color:var(--header-soft);margin-top:2px;}
+  .refresh-pill{
+    display:flex;align-items:center;gap:8px;
+    background:rgba(238,243,234,.08);border:1px solid rgba(238,243,234,.35);
+    color:var(--header-ink);border-radius:999px;padding:9px 18px;font-size:13px;
+    font-family:'Inter',sans-serif;font-weight:500;cursor:pointer;white-space:nowrap;
+    transition:background .15s ease;
+  }
+  .refresh-pill:hover{background:rgba(238,243,234,.16);}
+  .refresh-pill:disabled{opacity:.7;cursor:default;}
+  .refresh-pill svg{width:15px;height:15px;}
+  .refresh-pill.loading svg{animation:spin 900ms linear infinite;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  /* ---------- Tabs ---------- */
+  .tabbar{
+    display:flex;gap:10px;flex-wrap:wrap;
+    padding:20px 40px 0;
+  }
+  .tab{
+    background:var(--surface);border:1px solid var(--line);border-radius:999px;
+    padding:10px 18px;font-size:13.5px;font-weight:500;color:var(--ink-soft);
+    cursor:pointer;font-family:'Inter',sans-serif;
+  }
+  .tab.active{background:var(--header-bg);border-color:var(--header-bg);color:#fff;}
+
+  .main{padding:24px 40px 60px;max-width:1220px;margin:0 auto;}
+  .tab-panel{display:none;}
+  .tab-panel.active{display:block;}
+
+  .status-state{max-width:520px;margin:60px auto;text-align:center;}
+  .status-state h2{font-size:24px;font-weight:500;margin:0 0 8px;}
+  .status-state p{color:var(--ink-soft);font-size:14px;}
+  .status-state .ficha{
+    margin-top:22px;border:1px solid var(--line);border-radius:var(--radius);
+    background:var(--surface);padding:16px 18px;font-size:13px;color:var(--ink-soft);text-align:left;
+  }
+  .spinner-ring{
+    width:32px;height:32px;border-radius:50%;margin:0 auto 16px;
+    border:3px solid var(--line);border-top-color:var(--header-bg);
+    animation:spin 800ms linear infinite;
+  }
+  .retry-btn{
+    margin-top:14px;background:var(--pill-regular);color:#fff;border:none;border-radius:6px;
+    padding:8px 16px;font-size:13px;cursor:pointer;font-family:'Inter',sans-serif;
+  }
+
+  .card{
+    background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    padding:22px 24px;
+  }
+  .gauge-row{display:flex;gap:20px;flex-wrap:wrap;margin-bottom:20px;}
+  .gauge-card{flex:1;min-width:280px;display:flex;flex-direction:column;align-items:center;text-align:center;}
+  .gauge-card h3{font-size:15px;font-weight:500;margin:0 0 2px;}
+  .gauge-card .formula{font-size:12px;color:var(--ink-soft);margin:0 0 6px;}
+  .gauge-svg{width:100%;max-width:230px;height:auto;}
+  .gauge-value{font-size:36px;font-weight:600;margin:2px 0 4px;}
+  .gauge-value .unit{font-size:19px;font-weight:500;color:var(--ink-soft);}
+  .gauge-note{font-size:12px;color:var(--ink-soft);margin-top:6px;}
+
+  .pill{
+    display:inline-flex;align-items:center;gap:7px;
+    padding:6px 13px;border-radius:999px;font-size:12.5px;font-weight:600;
+    color:#fff;white-space:nowrap;
+  }
+
+  .section-title{font-size:13px;color:var(--ink-soft);margin:26px 0 10px;font-weight:600;}
+  .comp-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px;}
+  .comp-card{min-width:0;}
+  .comp-card h4{font-size:14.5px;font-weight:500;margin:0 0 12px;}
+  .stackbar{display:flex;width:100%;height:16px;border-radius:5px;overflow:hidden;background:var(--paper);border:1px solid var(--line);}
+  .stackbar .seg{height:100%;}
+  .legend{display:flex;flex-wrap:wrap;gap:14px;margin-top:10px;font-size:12.5px;color:var(--ink-soft);}
+  .legend-item{display:flex;align-items:center;gap:6px;}
+  .legend-item i{width:9px;height:9px;border-radius:2px;display:inline-block;}
+  .footnote{font-size:12px;color:var(--ink-soft);margin:10px 0 0;}
+
+  .trend-row{display:flex;gap:20px;flex-wrap:wrap;margin-bottom:24px;}
+  .trend-card{flex:1;min-width:320px;}
+  .trend-card h4{font-size:14.5px;font-weight:500;margin:0 0 4px;}
+  .trend-card .cur{font-size:12px;color:var(--ink-soft);margin:0 0 10px;}
+  .spark-svg{width:100%;height:auto;}
+
+  .history-head{display:flex;justify-content:space-between;align-items:center;margin:8px 0 12px;}
+  .history-head .clear-history{background:none;border:none;color:var(--pill-regular);font-size:12.5px;text-decoration:underline;cursor:pointer;padding:0;}
+  .history-list{display:flex;flex-direction:column;gap:6px;}
+  .history-item{
+    display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:8px;cursor:pointer;
+    background:var(--surface);border:1px solid var(--line);
+  }
+  .history-item:hover{border-color:var(--header-bg);}
+  .history-item.active{background:var(--header-bg);border-color:var(--header-bg);color:#fff;}
+  .history-item.active .dt{color:var(--header-soft);}
+  .history-dot{width:9px;height:9px;border-radius:50%;flex:none;}
+  .history-text{flex:1;min-width:0;}
+  .history-text .eq{font-size:13.5px;font-weight:500;}
+  .history-text .dt{font-size:11.5px;color:var(--ink-soft);}
+  .history-del{background:none;border:none;color:inherit;opacity:.6;cursor:pointer;font-size:16px;line-height:1;padding:2px 5px;}
+  .history-del:hover{opacity:1;}
+  .history-empty{font-size:13px;color:var(--ink-soft);}
+  .fetch-status{font-size:12.5px;color:var(--ink-soft);margin-top:10px;}
+  .fetch-status.err{color:var(--pill-regular);}
+
+  .notes-list{margin:0;padding-left:20px;font-size:13px;color:var(--ink-soft);}
+  .notes-list li{margin-bottom:12px;}
+
+  .indicator-tab-head{margin-bottom:20px;}
+  .indicator-tab-head h2{font-size:24px;font-weight:500;margin:0 0 4px;}
+  .indicator-tab-head p{margin:0;font-size:13px;color:var(--ink-soft);}
+  .lists-section{margin-top:8px;}
+  .list-card{margin-bottom:18px;}
+  .list-card h4{font-size:14.5px;font-weight:500;margin:0 0 10px;}
+  .list-search{
+    width:100%;max-width:320px;padding:8px 12px;margin-bottom:10px;
+    border:1px solid var(--line);border-radius:6px;font-family:'Inter',sans-serif;
+    font-size:13px;background:var(--surface);color:var(--ink);
+  }
+  .list-search:focus{outline:none;border-color:var(--header-bg);}
+  .list-filters{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;}
+  .filter-pair{display:flex;gap:6px;}
+  .list-filters select{
+    padding:8px 12px;border:1px solid var(--line);border-radius:6px;
+    font-family:'Inter',sans-serif;font-size:13px;background:var(--surface);color:var(--ink);
+    max-width:260px;
+  }
+  .list-filters select:focus{outline:none;border-color:var(--header-bg);}
+  .list-filters select:disabled{color:var(--ink-soft);cursor:not-allowed;}
+  .table-wrap{border:1px solid var(--line);border-radius:8px;overflow:auto;max-height:420px;}
+  .data-table{border-collapse:collapse;width:100%;font-size:12.5px;white-space:nowrap;}
+  .data-table thead th{
+    position:sticky;top:0;background:var(--paper);color:var(--ink-soft);
+    text-align:left;font-weight:600;padding:8px 12px;border-bottom:1px solid var(--line);z-index:1;
+  }
+  .data-table tbody td{padding:7px 12px;border-bottom:1px solid var(--line);}
+  .data-table tbody tr:hover{background:var(--paper);}
+  .list-meta{font-size:12px;color:var(--ink-soft);margin:0 0 8px;}
+  .list-placeholder{
+    border:1px dashed var(--line);border-radius:8px;padding:16px 18px;
+    font-size:12.5px;color:var(--ink-soft);
+  }
+  .list-placeholder code{background:var(--paper);border-radius:4px;padding:1px 5px;font-size:11.5px;}
+
+  @media (max-width:880px){
+    .topbar{padding:20px 20px;}
+    .topbar-right{width:100%;justify-content:space-between;}
+    .tabbar{padding:16px 20px 0;}
+    .main{padding:20px 20px 50px;}
+  }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="topbar-left">
+    <p class="kicker">Atenção Primária</p>
+    <h1>Painel eMulti</h1>
+    <p class="tagline">Indicadores M1 e M2 lidos direto da planilha publicada no Google Sheets.</p>
+  </div>
+  <div class="topbar-right">
+    <div class="topbar-meta">
+      <div class="eq" id="topEquipe">—</div>
+      <div class="dt" id="topUpdated">Carregando…</div>
+    </div>
+    <button class="refresh-pill" id="refreshBtn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12a9 9 0 1 1-2.6-6.36M21 4v5h-5"/></svg>
+      <span id="refreshLabel">Atualizar agora</span>
+    </button>
+  </div>
+</header>
+
+<nav class="tabbar">
+  <button class="tab active" data-tab="geral">Visão geral</button>
+  <button class="tab" data-tab="m1">M1</button>
+  <button class="tab" data-tab="m2">M2</button>
+  <button class="tab" data-tab="tendencia">Tendência</button>
+  <button class="tab" data-tab="notas">Notas metodológicas</button>
+</nav>
+
+<main class="main">
+  <div id="statusState" class="status-state">
+    <div class="spinner-ring"></div>
+    <h2>Carregando indicadores…</h2>
+    <p>Buscando os dados mais recentes da planilha publicada.</p>
+  </div>
+
+  <div id="tabGeral" class="tab-panel active">
+    <div class="gauge-row" id="gaugeRow"></div>
+    <p class="section-title">Composição do cálculo</p>
+    <div class="comp-row" id="compRow"></div>
+  </div>
+
+  <div id="tabM1" class="tab-panel">
+    <div class="indicator-tab-head">
+      <h2>M1 — Média de atendimentos por pessoa</h2>
+      <p>Atendimentos individuais + coletivos ÷ pessoas atendidas</p>
+    </div>
+    <div class="gauge-row" id="gaugeRowM1"></div>
+    <p class="section-title">Composição do M1</p>
+    <div class="comp-row" id="compRowM1"></div>
+    <p class="section-title">Listas</p>
+    <div class="lists-section" id="listsM1"></div>
+  </div>
+
+  <div id="tabM2" class="tab-panel">
+    <div class="indicator-tab-head">
+      <h2>M2 — Ações compartilhadas</h2>
+      <p>Ações compartilhadas ÷ ações realizadas × 100</p>
+    </div>
+    <div class="gauge-row" id="gaugeRowM2"></div>
+    <p class="section-title">Composição do M2</p>
+    <div class="comp-row" id="compRowM2"></div>
+    <p class="section-title">Listas</p>
+    <div class="lists-section" id="listsM2"></div>
+  </div>
+
+  <div id="tabTendencia" class="tab-panel">
+    <div class="trend-row" id="trendRow"></div>
+    <div class="card">
+      <div class="history-head">
+        <h4 style="margin:0;font-size:14.5px;font-weight:500;">Histórico de leituras</h4>
+        <button class="clear-history" id="clearHistory" style="display:none;">Limpar histórico</button>
+      </div>
+      <div class="history-list" id="historyList"></div>
+      <p class="fetch-status" id="fetchStatus"></p>
+    </div>
+  </div>
+
+  <div id="tabNotas" class="tab-panel">
+    <div class="card">
+      <ul class="notes-list" id="notesList"></ul>
+    </div>
+  </div>
+</main>
+
+<script>
+(function(){
+  "use strict";
+
+  // ID real da planilha (do link "Compartilhar", não do "Publicar na web").
+  // O link antigo de "Publicar na web" só expunha 1 aba mesmo pedindo xlsx
+  // (o Google ignorava o parâmetro), o que quebrava o fetch no navegador.
+  // Agora buscamos cada aba separadamente via endpoint gviz/tq (CSV com
+  // suporte a CORS de verdade), que funciona para qualquer aba por nome.
+  var SPREADSHEET_ID = "1ujHEI_pERAcKmxQRuF9AmgU0bN22w0A9nnpakCVjY18";
+  var INDICADORES_SHEET_NAME = "Indicadores M1 e M2";
+  var REQUIRED_SHEET_NAMES = [
+    INDICADORES_SHEET_NAME,
+    "Atendimentos",
+    "Participantes Ativ. Coletiva",
+    "Pessoas atendidas",
+    "Resumo Reuniões",
+    "Resumo Atividade Coletiva"
+  ];
+  function sheetCsvUrl(sheetName){
+    return "https://docs.google.com/spreadsheets/d/" + SPREADSHEET_ID
+      + "/gviz/tq?tqx=out:csv&sheet=" + encodeURIComponent(sheetName);
+  }
+  function fetchAllSheets(){
+    return Promise.all(REQUIRED_SHEET_NAMES.map(function(name){
+      return fetch(sheetCsvUrl(name), {cache:'no-store'})
+        .then(function(res){
+          if(!res.ok) throw new Error('HTTP ' + res.status);
+          return res.text();
+        })
+        .then(function(csvText){ return {name:name, csvText:csvText, ok:true}; })
+        .catch(function(err){ return {name:name, error:err, ok:false}; });
+    }));
+  }
+
+  var CLASS_PILL_HEX = {"Ótimo":"#2F6F5E","Bom":"#6B8F71","Suficiente":"#C68A3D","Regular":"#B5474B"};
+  var CLASS_ARC_HEX = {"Regular":"#DC4C4C","Suficiente":"#F2A93B","Bom":"#4CAF6D","Ótimo":"#3B7DDD"};
+
+  var M1_FIELDS = [
+    ["Nº de atendimentos individuais","atendimentosIndividuais","num"],
+    ["Nº de participações em atividades coletivas","participacoesColetivas","num"],
+    ["Numerador (atendimentos individuais","numeradorM1","num"],
+    ["Denominador (nº de pessoas atendidas)","denominadorM1","num"],
+    ["M1 = Numerador","m1","num"],
+    ["Classificação M1","classificacaoM1","str"]
+  ];
+  var M2_FIELDS = [
+    ["Nº de atividades coletivas (total)","atividadesTotais","num"],
+    ["Nº de atividades coletivas c/ 2+","atividadesCompartilhadas","num"],
+    ["Nº de reuniões (total)","reunioesTotais","num"],
+    ["Nº de reuniões c/ 2+","reunioesCompartilhadas","num"],
+    ["Denominador (atendimentos individuais","denominadorM2","num"],
+    ["Numerador (atividades coletivas","numeradorM2","num"],
+    ["M2 (%) = Numerador","m2","pct"],
+    ["Classificação M2","classificacaoM2","str"]
+  ];
+  var DESEMPENHO_FIELDS = [
+    ["Pontos M1","pontosM1","num"],
+    ["Pontos M2","pontosM2","num"],
+    ["Nota final","notaFinal","num"],
+    ["Desempenho quadrimestral final","desempenho","str"]
+  ];
+  var ALL_FIELDS = M1_FIELDS.concat(M2_FIELDS, DESEMPENHO_FIELDS);
+  var NOTES_PREFIX = "OBSERVAÇÕES E LIMITAÇÕES";
+
+  // ---------- Listas complementares ----------
+  // Vêm todas do MESMO arquivo (a versão .xlsx da planilha publicada traz
+  // todas as abas). Basta bater com o nome exato da aba no Google Sheets.
+  var M1_LIST_NAMES = ["Atendimentos", "Participantes Ativ. Coletiva", "Pessoas atendidas"];
+  var M2_LIST_NAMES = ["Atendimentos", "Resumo Reuniões", "Resumo Atividade Coletiva"];
+  var latestSheets = {}; // nome da aba -> {headers, rows} | {error}
+
+  var STORAGE_KEY = "uploads";
+  var currentRecordId = null;
+  var STORAGE_AVAILABLE = !!(window.storage && typeof window.storage.get === 'function'
+    && typeof window.storage.set === 'function');
+  var memoryHistory = [];
+
+  // ---------- Helpers ----------
+  function fmtInt(v){
+    if(v===null||v===undefined||isNaN(v)) return "—";
+    return Number(v).toLocaleString('pt-BR');
+  }
+  function fmtDec(v,d){
+    if(v===null||v===undefined||isNaN(v)) return "—";
+    return Number(v).toLocaleString('pt-BR',{minimumFractionDigits:d,maximumFractionDigits:d});
+  }
+  function fmtDate(ts){
+    var d = new Date(ts);
+    return d.toLocaleDateString('pt-BR') + " às " + d.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  }
+  function shortDate(ts){
+    var d = new Date(ts);
+    return d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+  }
+  function escapeHtml(s){
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+  function pillHex(c){ return CLASS_PILL_HEX[c] || "#9AA69E"; }
+  function arcHex(c){ return CLASS_ARC_HEX[c] || "#9AA69E"; }
+
+  // ---------- Parsing ----------
+  function findIndicadoresSheetName(wb){
+    if(wb.SheetNames.indexOf("Indicadores M1 e M2") !== -1) return "Indicadores M1 e M2";
+    for(var i=0;i<wb.SheetNames.length;i++){
+      var name = wb.SheetNames[i];
+      var ws = wb.Sheets[name];
+      var a1 = ws["A1"] ? String(ws["A1"].v||"") : "";
+      if(a1.indexOf("Indicadores M1 e M2") === 0) return name;
+    }
+    return null;
+  }
+  function sheetToRows(ws){
+    if(Array.isArray(ws)) return ws; // já é uma matriz de linhas (vindo do parseCsv)
+    return XLSX.utils.sheet_to_json(ws, {header:1, defval:""});
+  }
+
+  // Parser de CSV manual (RFC4180: respeita campos entre aspas, vírgulas e
+  // quebras de linha dentro de campos). Usado em vez do XLSX.read(string)
+  // porque a leitura automática de string do SheetJS não separava as
+  // linhas corretamente para o CSV retornado pelo endpoint gviz.
+  function parseCsv(text){
+    var rows = [];
+    var row = [];
+    var field = '';
+    var inQuotes = false;
+    for(var i=0; i<text.length; i++){
+      var c = text[i];
+      if(inQuotes){
+        if(c === '"'){
+          if(text[i+1] === '"'){ field += '"'; i++; }
+          else { inQuotes = false; }
+        } else {
+          field += c;
+        }
+      } else {
+        if(c === '"'){ inQuotes = true; }
+        else if(c === ','){ row.push(field); field=''; }
+        else if(c === '\r'){ /* ignora, quebra tratada no \n */ }
+        else if(c === '\n'){ row.push(field); field=''; rows.push(row); row=[]; }
+        else { field += c; }
+      }
+    }
+    if(field.length || row.length){ row.push(field); rows.push(row); }
+    return rows;
+  }
+
+  function parseValue(raw, type){
+    if(raw===undefined || raw===null) return null;
+    var s = String(raw).trim();
+    if(s === "" || s === "—") return null;
+    if(type==="str") return s;
+    if(type==="num"){
+      var n = parseFloat(s.replace(",","."));
+      return isNaN(n) ? null : n;
+    }
+    if(type==="pct"){
+      var p = parseFloat(s.replace("%","").replace(",",".").trim());
+      return isNaN(p) ? null : p;
+    }
+    return s;
+  }
+
+  function extractIndicadores(rows){
+    if(!rows.length) return {error:"noSheet"};
+    var titleText = String(rows[0][0] || "");
+    if(titleText.indexOf("Indicadores M1 e M2") !== 0) return {error:"noSheet"};
+
+    var equipe = "Equipe";
+    var parts = titleText.split(" — ");
+    if(parts.length > 1) equipe = parts.slice(1).join(" — ").trim();
+
+    var data = {};
+    var notes = [];
+    var inNotes = false;
+    for(var r=1;r<rows.length;r++){
+      var label = String(rows[r][0] || "").trim();
+      var valueCell = rows[r][1];
+      if(!label) continue;
+      if(label.indexOf(NOTES_PREFIX) === 0){ inNotes = true; continue; }
+      if(inNotes){ notes.push(label); continue; }
+      if(valueCell === "" || valueCell === undefined) continue;
+      for(var f=0; f<ALL_FIELDS.length; f++){
+        var field = ALL_FIELDS[f];
+        if(data[field[1]] !== undefined) continue;
+        if(label.indexOf(field[0]) === 0){
+          data[field[1]] = parseValue(valueCell, field[2]);
+          break;
+        }
+      }
+    }
+
+    return {equipe: equipe, data: data, notes: notes};
+  }
+
+  // ---------- Listas ----------
+  function populateSheetsCache(wb, indicadoresSheetName){
+    latestSheets = {};
+    wb.SheetNames.forEach(function(name){
+      if(name === indicadoresSheetName) return;
+      var rows = sheetToRows(wb.Sheets[name]).filter(function(r){
+        return r.some(function(c){ return String(c).trim() !== ""; });
+      });
+      if(!rows.length) return;
+      var headers = rows[0].map(function(h){ return String(h||"").trim() || "—"; });
+      latestSheets[name] = {headers: headers, rows: rows.slice(1)};
+    });
+  }
+
+  function renderListCard(name){
+    var cached = latestSheets[name];
+    var body;
+    if(!cached){
+      body = '<div class="list-placeholder">Não encontramos uma aba chamada "'+escapeHtml(name)+'" na planilha publicada.</div>';
+    } else if(!cached.rows.length){
+      body = '<div class="list-placeholder">Esta lista está vazia.</div>';
+    } else {
+      var theadHtml = '<tr>'+cached.headers.map(function(h){ return '<th>'+escapeHtml(h)+'</th>'; }).join('')+'</tr>';
+      var bodyHtml = cached.rows.map(function(r){
+        return '<tr>'+cached.headers.map(function(h,i){
+          var v = r[i];
+          return '<td>'+escapeHtml(v===undefined||v===null?'':v)+'</td>';
+        }).join('')+'</tr>';
+      }).join('');
+      var colOptionsHtml = '<option value="">Filtrar por coluna…</option>'
+        + cached.headers.map(function(h,i){ return '<option value="'+i+'">'+escapeHtml(h)+'</option>'; }).join('');
+      var filterPairsHtml = [0,1,2].map(function(){
+        return '<div class="filter-pair">'
+          + '<select class="filter-col">'+colOptionsHtml+'</select>'
+          + '<select class="filter-val" disabled><option value="">Todos os valores</option></select>'
+          + '</div>';
+      }).join('');
+      body = '<p class="list-meta">'+fmtInt(cached.rows.length)+(cached.rows.length===1?' linha':' linhas')+'</p>'
+        + '<div class="list-filters" data-list-filters="'+escapeHtml(name)+'">'+filterPairsHtml+'</div>'
+        + '<input class="list-search" type="text" placeholder="Filtrar nesta lista…" data-filter-key="'+escapeHtml(name)+'">'
+        + '<div class="table-wrap"><table class="data-table"><thead>'+theadHtml+'</thead><tbody>'+bodyHtml+'</tbody></table></div>';
+    }
+    return '<div class="card list-card" data-list-card="'+escapeHtml(name)+'"><h4>'+escapeHtml(name)+'</h4>'+body+'</div>';
+  }
+
+  function renderListsSection(containerId, names){
+    var el = document.getElementById(containerId);
+    if(!el) return;
+    el.innerHTML = names.map(renderListCard).join('');
+
+    function applyFilters(card){
+      var textInput = card.querySelector('.list-search');
+      var term = textInput ? textInput.value.trim().toLowerCase() : '';
+      var activeFilters = [];
+      card.querySelectorAll('.filter-pair').forEach(function(pair){
+        var colSelect = pair.querySelector('.filter-col');
+        var valSelect = pair.querySelector('.filter-val');
+        var colIdx = colSelect && colSelect.value !== '' ? parseInt(colSelect.value, 10) : null;
+        var val = valSelect ? valSelect.value : '';
+        if(colIdx !== null && val !== ''){ activeFilters.push({colIdx:colIdx, val:val}); }
+      });
+      card.querySelectorAll('tbody tr').forEach(function(tr){
+        var matchesText = !term || tr.textContent.toLowerCase().indexOf(term) !== -1;
+        var matchesCols = activeFilters.every(function(f){
+          var cell = tr.children[f.colIdx];
+          return cell && cell.textContent.trim() === f.val;
+        });
+        tr.style.display = (matchesText && matchesCols) ? '' : 'none';
+      });
+    }
+
+    el.querySelectorAll('[data-filter-key]').forEach(function(input){
+      input.addEventListener('input', function(){
+        applyFilters(input.closest('.list-card'));
+      });
+    });
+
+    el.querySelectorAll('.filter-pair .filter-col').forEach(function(colSelect){
+      colSelect.addEventListener('change', function(){
+        var card = colSelect.closest('.list-card');
+        var listName = card.querySelector('[data-list-filters]').getAttribute('data-list-filters');
+        var pair = colSelect.closest('.filter-pair');
+        var valSelect = pair.querySelector('.filter-val');
+        var colIdx = colSelect.value !== '' ? parseInt(colSelect.value, 10) : null;
+        valSelect.innerHTML = '<option value="">Todos os valores</option>';
+        if(colIdx === null){
+          valSelect.disabled = true;
+        } else {
+          var cached = latestSheets[listName];
+          var seen = {};
+          var values = [];
+          (cached ? cached.rows : []).forEach(function(r){
+            var v = r[colIdx];
+            v = (v===undefined||v===null) ? '' : String(v).trim();
+            if(v && !seen[v]){ seen[v] = true; values.push(v); }
+          });
+          values.sort(function(a,b){ return a.localeCompare(b, 'pt-BR'); });
+          values.forEach(function(v){
+            var opt = document.createElement('option');
+            opt.value = v;
+            opt.textContent = v;
+            valSelect.appendChild(opt);
+          });
+          valSelect.disabled = false;
+        }
+        applyFilters(card);
+      });
+    });
+
+    el.querySelectorAll('.filter-pair .filter-val').forEach(function(valSelect){
+      valSelect.addEventListener('change', function(){
+        applyFilters(valSelect.closest('.list-card'));
+      });
+    });
+  }
+
+  // ---------- Gauge ----------
+  function polar(cx,cy,r,angleDeg){
+    var a = angleDeg * Math.PI/180;
+    return {x: cx + r*Math.cos(a), y: cy - r*Math.sin(a)};
+  }
+  function arcPath(cx,cy,r,startAngle,endAngle){
+    var p1 = polar(cx,cy,r,startAngle);
+    var p2 = polar(cx,cy,r,endAngle);
+    var large = Math.abs(startAngle-endAngle) > 180 ? 1 : 0;
+    return "M "+p1.x+" "+p1.y+" A "+r+" "+r+" 0 "+large+" 1 "+p2.x+" "+p2.y;
+  }
+  function buildGauge(value, domainMax, bands, gaugeId){
+    var cx=115,cy=122,r=92,thick=16;
+    var bandsSvg = bands.map(function(b){
+      var a1 = 180 - (b.from/domainMax)*180;
+      var a2 = 180 - (b.to/domainMax)*180;
+      return '<path d="'+arcPath(cx,cy,r,a1,a2)+'" stroke="'+b.color+'" stroke-width="'+thick+'" fill="none" stroke-linecap="round"/>';
+    }).join('');
+    var frac = Math.max(0, Math.min(1, (value===null?0:value)/domainMax));
+    var targetAngle = 180 - frac*180;
+    var needleLen = r - thick/2 - 6;
+    var tipBase = polar(cx,cy,needleLen,180);
+    var needleSvg = '<g id="'+gaugeId+'" style="transform-origin:'+cx+'px '+cy+'px;transform:rotate(0deg);transition:transform 900ms cubic-bezier(.2,.8,.2,1);" data-target="'+(180-targetAngle)+'">'
+      + '<line x1="'+cx+'" y1="'+cy+'" x2="'+tipBase.x+'" y2="'+tipBase.y+'" stroke="#13241F" stroke-width="3" stroke-linecap="round"/>'
+      + '<circle cx="'+cx+'" cy="'+cy+'" r="5.5" fill="#13241F"/></g>';
+    return '<svg class="gauge-svg" viewBox="0 0 230 148">'+bandsSvg+needleSvg+'</svg>';
+  }
+  function animateGauges(){
+    document.querySelectorAll('[data-target]').forEach(function(el){
+      var target = el.getAttribute('data-target');
+      requestAnimationFrame(function(){
+        requestAnimationFrame(function(){
+          el.style.transform = 'rotate('+target+'deg)';
+        });
+      });
+    });
+  }
+
+  var CLASS_BANDS_M1 = [
+    {from:0,to:1,color:arcHex("Regular")},
+    {from:1,to:2,color:arcHex("Suficiente")},
+    {from:2,to:3,color:arcHex("Bom")},
+    {from:3,to:4,color:arcHex("Ótimo")}
+  ];
+  var CLASS_BANDS_M2 = [
+    {from:0,to:1,color:arcHex("Regular")},
+    {from:1,to:2.5,color:arcHex("Suficiente")},
+    {from:2.5,to:5,color:arcHex("Bom")},
+    {from:5,to:8,color:arcHex("Ótimo")}
+  ];
+  var CLASS_BANDS_NOTA = [
+    {from:0,to:2.5,color:arcHex("Regular")},
+    {from:2.5,to:5,color:arcHex("Suficiente")},
+    {from:5,to:7.5,color:arcHex("Bom")},
+    {from:7.5,to:10,color:arcHex("Ótimo")}
+  ];
+
+  function gaugeCardHTML(title, formula, value, domainMax, bands, gaugeId, valueHtml, classLabel, note){
+    return '<div class="card gauge-card">'
+      + '<h3>'+title+'</h3>'
+      + '<p class="formula">'+formula+'</p>'
+      + buildGauge(value, domainMax, bands, gaugeId)
+      + '<div class="gauge-value">'+valueHtml+'</div>'
+      + '<span class="pill" style="background:'+pillHex(classLabel)+'">'+(classLabel||'—')+'</span>'
+      + (note ? '<p class="gauge-note">'+note+'</p>' : '')
+      + '</div>';
+  }
+
+  // ---------- Composition bars ----------
+  function stackbar(segments, total){
+    var t = total || segments.reduce(function(s,x){return s+(x.value||0);},0);
+    var bars = segments.map(function(s){
+      var pct = t>0 ? (s.value/t*100) : 0;
+      return '<div class="seg" style="width:'+pct+'%;background:'+s.color+'"></div>';
+    }).join('');
+    var legend = segments.map(function(s){
+      return '<span class="legend-item"><i style="background:'+s.color+'"></i>'+s.label+' ('+fmtInt(s.value)+')</span>';
+    }).join('');
+    return '<div class="stackbar">'+bars+'</div><div class="legend">'+legend+'</div>';
+  }
+
+  // ---------- Sparkline ----------
+  function sparkline(points, color){
+    if(points.length < 2) return '<p class="footnote">Ainda não há leituras suficientes para mostrar a tendência.</p>';
+    var W=320,H=90,pad=14;
+    var vals = points.map(function(p){return p.y;});
+    var min = Math.min.apply(null, vals), max = Math.max.apply(null, vals);
+    if(min===max){ min = min - 1; max = max + 1; }
+    var stepX = (W-2*pad)/(points.length-1);
+    var coords = points.map(function(p,i){
+      var x = pad + i*stepX;
+      var y = H-pad - ((p.y-min)/(max-min))*(H-2*pad);
+      return {x:x,y:y};
+    });
+    var path = coords.map(function(c,i){ return (i===0?"M ":"L ")+c.x+" "+c.y; }).join(" ");
+    var dots = coords.map(function(c){ return '<circle cx="'+c.x+'" cy="'+c.y+'" r="3.2" fill="'+color+'"/>'; }).join("");
+    var labels = points.map(function(p,i){
+      return '<text x="'+coords[i].x+'" y="'+(H-1)+'" font-size="9" fill="var(--ink-soft)" text-anchor="middle">'+p.label+'</text>';
+    }).join("");
+    return '<svg class="spark-svg" viewBox="0 0 '+W+' '+(H+12)+'">'
+      + '<path d="'+path+'" fill="none" stroke="'+color+'" stroke-width="2"/>' + dots + labels + '</svg>';
+  }
+
+  // ---------- Tabs ----------
+  document.querySelectorAll('.tab').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      document.querySelectorAll('.tab').forEach(function(b){ b.classList.toggle('active', b===btn); });
+      var target = btn.getAttribute('data-tab');
+      document.querySelectorAll('.tab-panel').forEach(function(p){
+        p.classList.toggle('active', p.id === 'tab'+target.charAt(0).toUpperCase()+target.slice(1));
+      });
+    });
+  });
+
+  // ---------- Render ----------
+  function renderDashboard(record){
+    document.getElementById('statusState').style.display = 'none';
+    document.getElementById('topEquipe').textContent = record.equipe || '—';
+    document.getElementById('topUpdated').textContent = record.error
+      ? 'Falha na última leitura'
+      : 'Atualizado em ' + fmtDate(record.timestamp);
+
+    if(record.error){
+      document.getElementById('gaugeRow').innerHTML =
+        '<div class="card" style="flex:1;"><p style="color:var(--pill-regular);margin:0;">Não encontramos os indicadores M1 e M2 nesta planilha. Confira se o link publicado é o correto.</p></div>';
+      document.getElementById('compRow').innerHTML = '';
+      return;
+    }
+
+    var d = record.data;
+
+    // ---- Composição (4 cartões: Numerador/Denominador de M1 e M2) ----
+    var numM1Bar = stackbar([
+        {label:'Atendimentos individuais', value:d.atendimentosIndividuais, color:'#153F35'},
+        {label:'Participações coletivas', value:d.participacoesColetivas, color:'#C68A3D'}
+      ], d.numeradorM1);
+    var denM1Bar = stackbar([
+        {label:'Pessoas atendidas', value:d.denominadorM1, color:'#153F35'}
+      ], d.denominadorM1);
+    var numM2Bar = stackbar([
+        {label:'Atividades coletivas compartilhadas', value:d.atividadesCompartilhadas, color:'#153F35'},
+        {label:'Reuniões compartilhadas', value:d.reunioesCompartilhadas, color:'#C68A3D'}
+      ], d.numeradorM2);
+    var denM2Bar = stackbar([
+        {label:'Atendimentos individuais (base)', value:(d.denominadorM2!=null && d.numeradorM2!=null) ? d.denominadorM2-d.numeradorM2 : d.atendimentosIndividuais, color:'#CBD3C4'},
+        {label:'Atividades coletivas compartilhadas', value:d.atividadesCompartilhadas, color:'#153F35'},
+        {label:'Reuniões compartilhadas', value:d.reunioesCompartilhadas, color:'#C68A3D'}
+      ], d.denominadorM2);
+
+    document.getElementById('compRow').innerHTML =
+        '<div class="card comp-card"><h4>Numerador do M1</h4>'+numM1Bar+'</div>'
+      + '<div class="card comp-card"><h4>Denominador do M1</h4>'+denM1Bar+'</div>'
+      + '<div class="card comp-card"><h4>Numerador do M2</h4>'+numM2Bar+'</div>'
+      + '<div class="card comp-card"><h4>Denominador do M2</h4>'+denM2Bar+'</div>';
+
+    // ---- Visão geral: 3 gauges (M1, M2, Desempenho) ----
+    document.getElementById('gaugeRow').innerHTML =
+        gaugeCardHTML('M1 — Média de atendimentos por pessoa',
+          'Atendimentos individuais + coletivos ÷ pessoas atendidas',
+          d.m1, 4, CLASS_BANDS_M1, 'needle-geral-m1', fmtDec(d.m1,2), d.classificacaoM1,
+          fmtInt(d.numeradorM1)+' atendimentos ÷ '+fmtInt(d.denominadorM1)+' pessoas')
+      + gaugeCardHTML('M2 — Ações compartilhadas',
+          'Ações compartilhadas ÷ ações realizadas × 100',
+          d.m2, 8, CLASS_BANDS_M2, 'needle-geral-m2', fmtDec(d.m2,2)+'<span class="unit">%</span>', d.classificacaoM2,
+          fmtInt(d.numeradorM2)+' compartilhadas ÷ '+fmtInt(d.denominadorM2)+' ações')
+      + gaugeCardHTML('Desempenho quadrimestral',
+          'Nota final = (Pontos M1 × 6 + Pontos M2 × 4) ÷ 10',
+          d.notaFinal, 10, CLASS_BANDS_NOTA, 'needle-geral-nota', fmtDec(d.notaFinal,2), d.desempenho,
+          'Pontos M1: '+fmtInt(d.pontosM1)+' · Pontos M2: '+fmtInt(d.pontosM2));
+
+    // ---- Aba M1: gauge + composição do M1 + listas ----
+    document.getElementById('gaugeRowM1').innerHTML =
+      gaugeCardHTML('M1 — Média de atendimentos por pessoa',
+        'Atendimentos individuais + coletivos ÷ pessoas atendidas',
+        d.m1, 4, CLASS_BANDS_M1, 'needle-m1tab-m1', fmtDec(d.m1,2), d.classificacaoM1,
+        fmtInt(d.numeradorM1)+' atendimentos ÷ '+fmtInt(d.denominadorM1)+' pessoas');
+    document.getElementById('compRowM1').innerHTML =
+        '<div class="card comp-card"><h4>Numerador do M1</h4>'+numM1Bar+'</div>'
+      + '<div class="card comp-card"><h4>Denominador do M1</h4>'+denM1Bar+'</div>';
+    renderListsSection('listsM1', M1_LIST_NAMES);
+
+    // ---- Aba M2: gauge + composição do M2 + listas ----
+    document.getElementById('gaugeRowM2').innerHTML =
+      gaugeCardHTML('M2 — Ações compartilhadas',
+        'Ações compartilhadas ÷ ações realizadas × 100',
+        d.m2, 8, CLASS_BANDS_M2, 'needle-m2tab-m2', fmtDec(d.m2,2)+'<span class="unit">%</span>', d.classificacaoM2,
+        fmtInt(d.numeradorM2)+' compartilhadas ÷ '+fmtInt(d.denominadorM2)+' ações');
+    document.getElementById('compRowM2').innerHTML =
+        '<div class="card comp-card"><h4>Numerador do M2</h4>'+numM2Bar+'</div>'
+      + '<div class="card comp-card"><h4>Denominador do M2</h4>'+denM2Bar+'</div>';
+    renderListsSection('listsM2', M2_LIST_NAMES);
+
+    var history = loadHistoryArray();
+    var sameEquipe = history.filter(function(h){ return h.equipe === record.equipe && !h.error; })
+                             .sort(function(a,b){ return a.timestamp-b.timestamp; });
+    var trend = '';
+    trend += '<div class="card trend-card"><h4>M1 ao longo do tempo</h4>'
+      + '<p class="cur">Atual: '+fmtDec(d.m1,2)+'</p>'
+      + sparkline(sameEquipe.map(function(h){ return {y:h.data.m1, label:shortDate(h.timestamp)}; }).filter(function(p){return p.y!=null;}), '#153F35')
+      + '</div>';
+    trend += '<div class="card trend-card"><h4>M2 (%) ao longo do tempo</h4>'
+      + '<p class="cur">Atual: '+fmtDec(d.m2,2)+'%</p>'
+      + sparkline(sameEquipe.map(function(h){ return {y:h.data.m2, label:shortDate(h.timestamp)}; }).filter(function(p){return p.y!=null;}), '#C68A3D')
+      + '</div>';
+    document.getElementById('trendRow').innerHTML = trend;
+
+    var notesList = document.getElementById('notesList');
+    if(record.notes && record.notes.length){
+      notesList.innerHTML = record.notes.map(function(n){ return '<li>'+escapeHtml(n)+'</li>'; }).join('');
+    } else {
+      notesList.innerHTML = '<li style="list-style:none;margin-left:-20px;">Nenhuma nota disponível para esta leitura.</li>';
+    }
+
+    animateGauges();
+    renderHistoryList();
+  }
+
+  // ---------- Storage ----------
+  function loadHistoryArray(){
+    return window.__historyCache || [];
+  }
+
+  function refreshHistoryFromStorage(cb){
+    if(!STORAGE_AVAILABLE){
+      window.__historyCache = memoryHistory;
+      if(cb) cb(memoryHistory);
+      return;
+    }
+    window.storage.get(STORAGE_KEY, false).then(function(res){
+      var arr = [];
+      if(res && res.value){
+        try{ arr = JSON.parse(res.value); }catch(e){ arr = []; }
+      }
+      window.__historyCache = arr;
+      if(cb) cb(arr);
+    }).catch(function(){
+      window.__historyCache = [];
+      if(cb) cb([]);
+    });
+  }
+
+  function saveHistoryArray(arr){
+    window.__historyCache = arr;
+    memoryHistory = arr;
+    if(!STORAGE_AVAILABLE) return Promise.resolve();
+    try{
+      return window.storage.set(STORAGE_KEY, JSON.stringify(arr), false).catch(function(){});
+    }catch(e){
+      return Promise.resolve();
+    }
+  }
+
+  function renderHistoryList(){
+    var arr = loadHistoryArray().slice().sort(function(a,b){ return b.timestamp-a.timestamp; });
+    var el = document.getElementById('historyList');
+    var clearBtn = document.getElementById('clearHistory');
+    if(!arr.length){
+      el.innerHTML = '<p class="history-empty">Nenhuma leitura ainda.</p>';
+      clearBtn.style.display = 'none';
+      return;
+    }
+    clearBtn.style.display = 'block';
+    el.innerHTML = arr.map(function(h){
+      var dotColor = h.error ? '#9AA69E' : pillHex(h.data && h.data.desempenho);
+      return '<div class="history-item'+(h.id===currentRecordId?' active':'')+'" data-id="'+h.id+'">'
+        + '<span class="history-dot" style="background:'+dotColor+'"></span>'
+        + '<span class="history-text"><span class="eq">'+escapeHtml(h.equipe)+'</span><span class="dt">'+fmtDate(h.timestamp)+'</span></span>'
+        + '<button class="history-del" data-del="'+h.id+'" title="Remover">×</button>'
+        + '</div>';
+    }).join('');
+
+    el.querySelectorAll('.history-item').forEach(function(item){
+      item.addEventListener('click', function(e){
+        if(e.target.classList.contains('history-del')) return;
+        var id = item.getAttribute('data-id');
+        var rec = loadHistoryArray().find(function(h){ return h.id === id; });
+        if(rec){ currentRecordId = id; renderDashboard(rec); }
+      });
+    });
+    el.querySelectorAll('.history-del').forEach(function(btn){
+      btn.addEventListener('click', function(e){
+        e.stopPropagation();
+        var id = btn.getAttribute('data-del');
+        var arr2 = loadHistoryArray().filter(function(h){ return h.id !== id; });
+        saveHistoryArray(arr2).then(function(){
+          if(id === currentRecordId && arr2.length){
+            var latest = arr2.slice().sort(function(a,b){return b.timestamp-a.timestamp;})[0];
+            currentRecordId = latest.id;
+            renderDashboard(latest);
+          } else {
+            renderHistoryList();
+          }
+        });
+      });
+    });
+  }
+
+  document.getElementById('clearHistory').addEventListener('click', function(){
+    if(!confirm('Remover todo o histórico de leituras deste navegador?')) return;
+    saveHistoryArray([]).then(function(){
+      currentRecordId = null;
+      renderHistoryList();
+    });
+  });
+
+  // ---------- Fetch ----------
+  var fetchStatusEl = document.getElementById('fetchStatus');
+  var refreshBtn = document.getElementById('refreshBtn');
+  var refreshLabel = document.getElementById('refreshLabel');
+
+  function sameData(a,b){
+    if(!a || !b) return false;
+    return JSON.stringify(a) === JSON.stringify(b);
+  }
+
+  function fetchAndLoad(){
+    refreshBtn.classList.add('loading');
+    refreshBtn.disabled = true;
+    refreshLabel.textContent = 'Atualizando…';
+    fetchStatusEl.textContent = 'Buscando dados…';
+    fetchStatusEl.className = 'fetch-status';
+
+    fetchAllSheets()
+      .then(function(results){
+        if(typeof XLSX === 'undefined'){
+          throw new Error('A biblioteca de leitura de planilhas não carregou (verifique sua conexão).');
+        }
+        var indicadoresResult = results.filter(function(r){ return r.name === INDICADORES_SHEET_NAME; })[0];
+        if(!indicadoresResult || !indicadoresResult.ok){
+          throw new Error('Não foi possível ler a aba "' + INDICADORES_SHEET_NAME + '" (verifique se ela ainda existe e se a planilha está com acesso "qualquer pessoa com o link pode visualizar").');
+        }
+
+        var wb = {SheetNames:[], Sheets:{}};
+        results.forEach(function(r){
+          if(!r.ok) return;
+          var parsedRows = parseCsv(r.csvText);
+          if(!parsedRows.length) return;
+          wb.Sheets[r.name] = parsedRows;
+          wb.SheetNames.push(r.name);
+        });
+
+        var indicadoresSheetName = findIndicadoresSheetName(wb);
+        var extracted = indicadoresSheetName
+          ? extractIndicadores(sheetToRows(wb.Sheets[indicadoresSheetName]))
+          : {error:'noSheet'};
+        populateSheetsCache(wb, indicadoresSheetName);
+
+        var now = Date.now();
+        var history = loadHistoryArray();
+        var lastForEquipe = history.filter(function(h){ return !h.error && h.equipe === extracted.equipe; })
+                                    .sort(function(a,b){ return b.timestamp-a.timestamp; })[0];
+
+        if(extracted.error){
+          var errRecord = {id:'e'+now, timestamp:now, error:extracted.error, equipe:'Planilha'};
+          currentRecordId = errRecord.id;
+          fetchStatusEl.textContent = 'Não encontramos os indicadores nesta planilha.';
+          fetchStatusEl.className = 'fetch-status err';
+          renderDashboard(errRecord);
+          return;
+        }
+
+        if(lastForEquipe && sameData(lastForEquipe.data, extracted.data)){
+          currentRecordId = lastForEquipe.id;
+          fetchStatusEl.textContent = 'Dados sem alterações desde a última leitura.';
+          renderDashboard(lastForEquipe);
+          return;
+        }
+
+        var record = {
+          id: 'u'+now+Math.random().toString(36).slice(2,7),
+          timestamp: now,
+          equipe: extracted.equipe,
+          data: extracted.data,
+          notes: extracted.notes
+        };
+        var arr = loadHistoryArray();
+        arr.push(record);
+        saveHistoryArray(arr).then(function(){
+          currentRecordId = record.id;
+          fetchStatusEl.textContent = 'Planilha lida com sucesso.';
+          renderDashboard(record);
+        });
+      })
+      .catch(function(err){
+        var msg = (err && err.message) ? err.message : 'verifique sua conexão e o link publicado.';
+        fetchStatusEl.textContent = 'Não foi possível ler a planilha: ' + msg;
+        fetchStatusEl.className = 'fetch-status err';
+        var history = loadHistoryArray();
+        if(!history.length){
+          document.getElementById('statusState').innerHTML =
+            '<h2>Não foi possível carregar</h2><p>' + escapeHtml(msg) + '</p>'
+            + '<div class="ficha"><b>Verifique:</b> se a planilha continua publicada em "Arquivo → Compartilhar → Publicar na web" (incluindo todas as abas) e se o link ainda é válido.</div>'
+            + '<button class="retry-btn" id="retryBtn">Tentar de novo</button>';
+          var retry = document.getElementById('retryBtn');
+          if(retry) retry.addEventListener('click', fetchAndLoad);
+        }
+      })
+      .finally(function(){
+        refreshBtn.classList.remove('loading');
+        refreshBtn.disabled = false;
+        refreshLabel.textContent = 'Atualizar agora';
+      });
+  }
+
+  refreshBtn.addEventListener('click', fetchAndLoad);
+
+  // ---------- Init ----------
+  refreshHistoryFromStorage(function(arr){
+    if(arr.length){
+      var latest = arr.slice().sort(function(a,b){ return b.timestamp-a.timestamp; })[0];
+      currentRecordId = latest.id;
+      renderDashboard(latest);
+    }
+    fetchAndLoad();
+  });
+})();
+</script>
+</body>
+</html>
