@@ -1365,10 +1365,13 @@
 
     var extracted, periodo;
     if(refMonthDate){
-      // Mês específico escolhido: indicadores só daquele mês (sem média).
-      var periodoMes = periodoMesUnico(refMonthDate);
-      extracted = calcularIndicadoresDoPeriodo(latestWb, periodoMes);
-      periodo = {inicio: fmtBRDate(periodoMes.inicio), fim: fmtBRDate(periodoMes.fim)};
+      // Mês específico escolhido: NÃO é só aquele mês isolado — é a janela
+      // móvel de JANELA_MESES meses TERMINANDO nesse mês (ex.: maio →
+      // fev, mar, abr e maio, incluindo os dois extremos), a mesma janela
+      // usada pela série de tendência (ver calcularJanelaPeriodo).
+      var janelaMes = calcularJanelaPeriodo(refMonthDate);
+      extracted = calcularIndicadoresDoPeriodo(latestWb, janelaMes);
+      periodo = {inicio: fmtBRDate(janelaMes.inicio), fim: fmtBRDate(janelaMes.fim)};
     } else {
       // Nenhum mês escolhido: média dos 4 meses do quadrimestre selecionado.
       var meses = mesesDoQuadrimestre(quadSelecionado.ano, quadSelecionado.qIndex);
@@ -1394,7 +1397,7 @@
     var winEl = document.getElementById('refWindowLabel');
     if(winEl){
       winEl.innerHTML = refMonthDate
-        ? 'Mostrando apenas <b>'+monthOptionLabel(refMonthDate)+'</b>'
+        ? 'Resultado de <b>'+monthOptionLabel(refMonthDate)+'</b> — janela de '+JANELA_MESES+' meses ('+periodo.inicio+' a '+periodo.fim+')'
         : 'Média de <b>'+QUAD_LABELS[quadSelecionado.qIndex]+'/'+quadSelecionado.ano+'</b> ('+periodo.inicio+' a '+periodo.fim+')';
     }
 
