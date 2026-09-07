@@ -81,7 +81,7 @@
 
   /* ---------- Tabs ---------- */
   .tabbar{
-    display:flex;gap:10px;flex-wrap:wrap;
+    display:flex;gap:10px;flex-wrap:wrap;justify-content:center;
     padding:20px 40px 0;
   }
   .tab{
@@ -1004,6 +1004,7 @@
   function renderDashboard(record, serieTendencia){
     serieTendencia = serieTendencia || [];
     document.getElementById('statusState').style.display = 'none';
+    populateRefMonthSelect();
     document.getElementById('topEquipe').textContent = record.equipe || '—';
     document.getElementById('topPeriodo').textContent = record.periodo
       ? 'Período: ' + record.periodo.inicio + ' a ' + record.periodo.fim
