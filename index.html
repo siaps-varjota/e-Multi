@@ -1156,6 +1156,12 @@
     {label:'Suficiente', cond:'&gt; 1% e ≤ 2,5%',     color:arcHex('Suficiente')},
     {label:'Regular',    cond:'≤ 1%',                 color:arcHex('Regular')}
   ];
+  var LEGEND_NOTA = [
+    {label:'Ótimo',      cond:'&gt; 7,5',            color:arcHex('Ótimo')},
+    {label:'Bom',        cond:'≥ 5 e ≤ 7,5',         color:arcHex('Bom')},
+    {label:'Suficiente', cond:'&gt; 2,5 e &lt; 5',   color:arcHex('Suficiente')},
+    {label:'Regular',    cond:'≤ 2,5',               color:arcHex('Regular')}
+  ];
 
   function gaugeCardHTML(title, formula, value, domainMax, bands, gaugeId, valueHtml, classLabel, note, legend){
     return '<div class="card gauge-card">'
@@ -1358,7 +1364,7 @@
       + gaugeCardHTML('Desempenho quadrimestral',
           'Nota final = (Pontos M1 × 6 + Pontos M2 × 4) ÷ 10',
           d.notaFinal, 10, CLASS_BANDS_NOTA, 'needle-geral-nota', fmtDec(d.notaFinal,2), d.desempenho,
-          'Pontos M1: '+fmtInt(d.pontosM1)+' · Pontos M2: '+fmtInt(d.pontosM2));
+          'Pontos M1: '+fmtInt(d.pontosM1)+' · Pontos M2: '+fmtInt(d.pontosM2), LEGEND_NOTA);
 
     // ---- Meta do quadrimestre: alvo de atendimentos/ações compartilhadas
     // pra bater "Bom" e "Ótimo" em M1 e M2, com ritmo médio necessário. ----
