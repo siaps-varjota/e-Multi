@@ -91,6 +91,21 @@
   }
   .tab.active{background:var(--header-bg);border-color:var(--header-bg);color:#fff;}
 
+  .ref-month-row{
+    display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+    background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
+    padding:14px 18px;margin-bottom:20px;
+  }
+  .ref-month-row label{font-size:13px;font-weight:600;color:var(--ink-soft);}
+  .ref-month-row select{
+    padding:8px 12px;border:1px solid var(--line);border-radius:6px;
+    font-family:'Inter',sans-serif;font-size:13.5px;background:var(--paper);color:var(--ink);
+    font-weight:500;
+  }
+  .ref-month-row select:focus{outline:none;border-color:var(--header-bg);}
+  .ref-window-label{font-size:12.5px;color:var(--ink-soft);}
+  .ref-window-label b{color:var(--ink);font-weight:600;}
+
   .main{padding:24px 40px 60px;max-width:1220px;margin:0 auto;}
   .tab-panel{display:none;}
   .tab-panel.active{display:block;}
@@ -264,6 +279,11 @@
   </div>
 
   <div id="tabGeral" class="tab-panel active">
+    <div class="ref-month-row">
+      <label for="refMonthSelect">Mês de referência</label>
+      <select id="refMonthSelect"></select>
+      <span class="ref-window-label" id="refWindowLabel"></span>
+    </div>
     <div class="gauge-row" id="gaugeRow"></div>
     <p class="section-title">Composição do cálculo</p>
     <div class="comp-row" id="compRow"></div>
@@ -338,10 +358,19 @@
   // Agora buscamos cada aba separadamente via endpoint gviz/tq (CSV com
   // suporte a CORS de verdade), que funciona para qualquer aba por nome.
   var SPREADSHEET_ID = "1ujHEI_pERAcKmxQRuF9AmgU0bN22w0A9nnpakCVjY18";
-  // Janela móvel de referência: "hoje menos N meses" até hoje. Não existe
-  // aba "Config" nem período explícito na planilha — o próprio painel
-  // calcula essa janela. Mude só este número se quiser 3, 4 ou 6 meses.
+  // Janela móvel: agora amarrada a um "Mês de referência" escolhido pelo
+  // usuário no seletor da Visão geral (não mais "hoje menos N meses"). Ao
+  // escolher, por exemplo, maio, a janela vai de fevereiro a maio (4 meses,
+  // incluindo o mês de referência). Mude só este número se quiser 3, 4 ou 6
+  // meses de janela.
   var JANELA_MESES = 4;
+  // Quantos pontos (meses) mostrar nos gráficos de tendência — cada ponto
+  // é o M1/M2 daquele mês, já calculado com sua própria janela de
+  // JANELA_MESES meses terminando naquele mês.
+  var TREND_MESES = 6;
+  // Mês de referência selecionado (sempre o dia 1 do mês). Começa no mês
+  // atual; muda quando o usuário mexe no seletor #refMonthSelect.
+  var refMonthDate = startOfMonth(new Date());
   // Só as abas de dados BRUTOS — o painel calcula M1/M2 sozinho a partir
   // delas (não lê mais nenhum valor pronto da aba "Indicadores M1 e M2").
   // IMPORTANTE: não existem abas separadas por equipe na planilha — os
@@ -379,15 +408,55 @@
     // de BASE_SHEET_NAMES).
     return BASE_SHEET_NAMES.slice();
   }
-  function calcularJanelaPeriodo(){
-    // "Hook" do período: janela móvel terminando hoje. Se um dia você
-    // quiser voltar a ler o período de uma célula da planilha, é só trocar
-    // o corpo desta função — o resto do painel não muda.
-    var fim = new Date();
-    fim.setHours(23,59,59,999);
-    var inicio = new Date(fim.getFullYear(), fim.getMonth()-JANELA_MESES, fim.getDate());
-    inicio.setHours(0,0,0,0);
+  function startOfMonth(d){ return new Date(d.getFullYear(), d.getMonth(), 1); }
+  function addMonths(d, n){ return new Date(d.getFullYear(), d.getMonth()+n, 1); }
+  function monthOptionValue(d){ return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,'0'); }
+  function monthOptionLabel(d){
+    var s = d.toLocaleDateString('pt-BR', {month:'long', year:'numeric'});
+    return s.charAt(0).toUpperCase() + s.slice(1);
+  }
+  function monthShortLabel(d){
+    var s = d.toLocaleDateString('pt-BR', {month:'short'}).replace('.', '');
+    return s.charAt(0).toUpperCase() + s.slice(1) + '/' + String(d.getFullYear()).slice(2);
+  }
+  // Janela móvel de 4 meses (JANELA_MESES) TERMINANDO no mês de referência
+  // informado (ex.: referência = maio → janela = fev a maio, incluindo os
+  // dois extremos). "refMonth" é sempre o dia 1 do mês.
+  function calcularJanelaPeriodo(refMonth){
+    var fim = new Date(refMonth.getFullYear(), refMonth.getMonth()+1, 0, 23,59,59,999); // último dia do mês de referência
+    var inicioMes = addMonths(refMonth, -(JANELA_MESES-1));
+    var inicio = new Date(inicioMes.getFullYear(), inicioMes.getMonth(), 1, 0,0,0,0);
     return {inicio: inicio, fim: fim};
+  }
+  // Série pra tendência: um ponto por mês (os últimos TREND_MESES meses,
+  // terminando no mês de referência selecionado), cada um com sua PRÓPRIA
+  // janela móvel de JANELA_MESES meses (não é o mesmo período repetido).
+  function calcularSerieTendencia(wb, refMonth, n){
+    var pontos = [];
+    for(var i=n-1; i>=0; i--){
+      var mes = addMonths(refMonth, -i);
+      var janela = calcularJanelaPeriodo(mes);
+      var res = calcularIndicadoresDoPeriodo(wb, janela);
+      pontos.push({mes:mes, m1:res.data.m1, m2:res.data.m2, janela:janela});
+    }
+    return pontos;
+  }
+  function populateRefMonthSelect(){
+    var sel = document.getElementById('refMonthSelect');
+    if(!sel || sel.options.length) return; // já populado (não recria a cada render)
+    var hoje = startOfMonth(new Date());
+    var opts = [];
+    for(var i=0; i<24; i++){
+      var d = addMonths(hoje, -i);
+      opts.push('<option value="'+monthOptionValue(d)+'">'+monthOptionLabel(d)+'</option>');
+    }
+    sel.innerHTML = opts.join('');
+    sel.value = monthOptionValue(refMonthDate);
+    sel.addEventListener('change', function(){
+      var parts = sel.value.split('-');
+      refMonthDate = new Date(+parts[0], +parts[1]-1, 1);
+      aplicarMesReferencia(false);
+    });
   }
   function sheetCsvUrl(sheetName){
     return "https://docs.google.com/spreadsheets/d/" + SPREADSHEET_ID
@@ -932,7 +1001,8 @@
   });
 
   // ---------- Render ----------
-  function renderDashboard(record){
+  function renderDashboard(record, serieTendencia){
+    serieTendencia = serieTendencia || [];
     document.getElementById('statusState').style.display = 'none';
     document.getElementById('topEquipe').textContent = record.equipe || '—';
     document.getElementById('topPeriodo').textContent = record.periodo
@@ -1012,17 +1082,20 @@
       + '<div class="card comp-card"><h4>Denominador do M2</h4>'+denM2Bar+'</div>';
     renderListsSection('listsM2', m2ListNames());
 
-    var history = loadHistoryArray();
-    var sameEquipe = history.filter(function(h){ return h.equipe === record.equipe && !h.error; })
-                             .sort(function(a,b){ return a.timestamp-b.timestamp; });
+    // Tendência mês a mês: cada ponto é o M1/M2 calculado com sua própria
+    // janela móvel de JANELA_MESES meses terminando naquele mês (ver
+    // calcularSerieTendencia) — não é mais o histórico de vezes que a
+    // página foi atualizada.
     var trend = '';
-    trend += '<div class="card trend-card"><h4>M1 ao longo do tempo</h4>'
-      + '<p class="cur">Atual: '+fmtDec(d.m1,2)+'</p>'
-      + sparkline(sameEquipe.map(function(h){ return {y:h.data.m1, label:shortDate(h.timestamp)}; }).filter(function(p){return p.y!=null;}), '#153F35')
+    trend += '<div class="card trend-card"><h4>M1 mês a mês</h4>'
+      + '<p class="cur">Mês de referência ('+monthOptionLabel(refMonthDate)+'): '+fmtDec(d.m1,2)+'</p>'
+      + sparkline(serieTendencia.map(function(p){ return {y:p.m1, label:monthShortLabel(p.mes)}; }).filter(function(p){return p.y!=null;}), '#153F35')
+      + '<p class="footnote">Cada ponto já é a janela de '+JANELA_MESES+' meses terminando naquele mês.</p>'
       + '</div>';
-    trend += '<div class="card trend-card"><h4>M2 (%) ao longo do tempo</h4>'
-      + '<p class="cur">Atual: '+fmtDec(d.m2,2)+'%</p>'
-      + sparkline(sameEquipe.map(function(h){ return {y:h.data.m2, label:shortDate(h.timestamp)}; }).filter(function(p){return p.y!=null;}), '#C68A3D')
+    trend += '<div class="card trend-card"><h4>M2 (%) mês a mês</h4>'
+      + '<p class="cur">Mês de referência ('+monthOptionLabel(refMonthDate)+'): '+fmtDec(d.m2,2)+'%</p>'
+      + sparkline(serieTendencia.map(function(p){ return {y:p.m2, label:monthShortLabel(p.mes)}; }).filter(function(p){return p.y!=null;}), '#C68A3D')
+      + '<p class="footnote">Cada ponto já é a janela de '+JANELA_MESES+' meses terminando naquele mês.</p>'
       + '</div>';
     document.getElementById('trendRow').innerHTML = trend;
 
@@ -1096,7 +1169,10 @@
         if(e.target.classList.contains('history-del')) return;
         var id = item.getAttribute('data-id');
         var rec = loadHistoryArray().find(function(h){ return h.id === id; });
-        if(rec){ currentRecordId = id; renderDashboard(rec); }
+        if(rec){
+          currentRecordId = id;
+          renderDashboard(rec, calcularSerieTendencia(latestWb, refMonthDate, TREND_MESES));
+        }
       });
     });
     el.querySelectorAll('.history-del').forEach(function(btn){
@@ -1135,6 +1211,81 @@
     return JSON.stringify(a) === JSON.stringify(b);
   }
 
+  // Dados brutos (já filtrados pela equipe atual, mas SEM filtro de
+  // período — o período é aplicado depois, em calcularIndicadoresDoPeriodo)
+  // guardados aqui após o último fetch bem-sucedido. Trocar o "Mês de
+  // referência" no seletor reusa este cache e recalcula tudo na hora, sem
+  // precisar buscar a planilha de novo na rede.
+  var latestWb = null;
+
+  // Recalcula M1/M2/pontos/nota + a série de tendência pro mês de
+  // referência atual (refMonthDate), a partir do cache latestWb.
+  // saveHistory=true (usado logo após um fetch): grava uma nova "leitura"
+  // no histórico se os dados mudaram desde a última do mesmo período/equipe.
+  // saveHistory=false (usado ao trocar o seletor de mês): só recalcula e
+  // renderiza na hora, sem criar entrada nova no histórico de leituras.
+  function aplicarMesReferencia(saveHistory){
+    if(!latestWb) return;
+
+    var janela = calcularJanelaPeriodo(refMonthDate);
+    var extracted = calcularIndicadoresDoPeriodo(latestWb, janela);
+
+    populateSheetsCache(latestWb);
+    registrarListaCalculada("Pessoas atendidas", extracted.pessoasAtendidas);
+
+    var periodo = {inicio: fmtBRDate(janela.inicio), fim: fmtBRDate(janela.fim)};
+    var serie = calcularSerieTendencia(latestWb, refMonthDate, TREND_MESES);
+
+    var selEl = document.getElementById('refMonthSelect');
+    if(selEl) selEl.value = monthOptionValue(refMonthDate);
+    var winEl = document.getElementById('refWindowLabel');
+    if(winEl) winEl.innerHTML = 'Janela de '+JANELA_MESES+' meses: <b>'+periodo.inicio+' a '+periodo.fim+'</b>';
+
+    if(!saveHistory){
+      var base = currentRecordId ? loadHistoryArray().find(function(h){ return h.id === currentRecordId; }) : null;
+      var record = {
+        id: base ? base.id : 'tmp',
+        timestamp: base ? base.timestamp : Date.now(),
+        equipe: extracted.equipe,
+        data: extracted.data,
+        notes: extracted.notes,
+        periodo: periodo
+      };
+      renderDashboard(record, serie);
+      return;
+    }
+
+    var now = Date.now();
+    var history = loadHistoryArray();
+    var lastForEquipe = history.filter(function(h){
+      return !h.error && h.equipe === extracted.equipe
+        && h.periodo && h.periodo.inicio === periodo.inicio && h.periodo.fim === periodo.fim;
+    }).sort(function(a,b){ return b.timestamp-a.timestamp; })[0];
+
+    if(lastForEquipe && sameData(lastForEquipe.data, extracted.data)){
+      currentRecordId = lastForEquipe.id;
+      fetchStatusEl.textContent = 'Dados sem alterações desde a última leitura.';
+      renderDashboard(lastForEquipe, serie);
+      return;
+    }
+
+    var record = {
+      id: 'u'+now+Math.random().toString(36).slice(2,7),
+      timestamp: now,
+      equipe: extracted.equipe,
+      data: extracted.data,
+      notes: extracted.notes,
+      periodo: periodo
+    };
+    var arr = loadHistoryArray();
+    arr.push(record);
+    saveHistoryArray(arr).then(function(){
+      currentRecordId = record.id;
+      fetchStatusEl.textContent = 'Planilha lida e calculada com sucesso.';
+      renderDashboard(record, serie);
+    });
+  }
+
   function fetchAndLoad(){
     refreshBtn.classList.add('loading');
     refreshBtn.disabled = true;
@@ -1158,50 +1309,16 @@
           // equipe selecionada e guarda no workbook sob a chave "sufixada"
           // — o resto do painel (cálculo, listas) continua lendo por essa
           // chave, sem precisar saber que a aba é compartilhada entre
-          // equipes.
+          // equipes. Note: SEM filtro de período aqui — cada mês de
+          // referência filtra por data na hora, em aplicarMesReferencia().
           var filtradas = filtrarLinhasPorEquipe(parsedRows, currentEquipe);
           var key = suffixedName(r.name);
           wb.Sheets[key] = filtradas;
           wb.SheetNames.push(key);
         });
 
-        // Período: janela móvel calculada aqui mesmo (não existe aba Config
-        // nem período na aba Indicadores M1 e M2 — ver calcularJanelaPeriodo()).
-        var janela = calcularJanelaPeriodo();
-        var extracted = calcularIndicadoresDoPeriodo(wb, janela);
-
-        populateSheetsCache(wb);
-        registrarListaCalculada("Pessoas atendidas", extracted.pessoasAtendidas);
-
-        var periodo = {inicio: fmtBRDate(janela.inicio), fim: fmtBRDate(janela.fim)};
-
-        var now = Date.now();
-        var history = loadHistoryArray();
-        var lastForEquipe = history.filter(function(h){ return !h.error && h.equipe === extracted.equipe; })
-                                    .sort(function(a,b){ return b.timestamp-a.timestamp; })[0];
-
-        if(lastForEquipe && sameData(lastForEquipe.data, extracted.data)){
-          currentRecordId = lastForEquipe.id;
-          fetchStatusEl.textContent = 'Dados sem alterações desde a última leitura.';
-          renderDashboard(lastForEquipe);
-          return;
-        }
-
-        var record = {
-          id: 'u'+now+Math.random().toString(36).slice(2,7),
-          timestamp: now,
-          equipe: extracted.equipe,
-          data: extracted.data,
-          notes: extracted.notes,
-          periodo: periodo
-        };
-        var arr = loadHistoryArray();
-        arr.push(record);
-        saveHistoryArray(arr).then(function(){
-          currentRecordId = record.id;
-          fetchStatusEl.textContent = 'Planilha lida e calculada com sucesso.';
-          renderDashboard(record);
-        });
+        latestWb = wb;
+        aplicarMesReferencia(true);
       })
       .catch(function(err){
         var msg = (err && err.message) ? err.message : 'verifique sua conexão e o link publicado.';
