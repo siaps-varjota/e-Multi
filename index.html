@@ -340,7 +340,7 @@
     return BASE_SHEET_NAMES.map(suffixedName).concat([CONFIG_SHEET_NAME]);
   }
   function sheetCsvUrl(sheetName){
-    return "https://docs.google.com/spreadsheets/d/" + SPREADSHEET_ID
+    return "https://docs.google.com/spreadsheets/d/e/2PACX-1vTu5mR4yjXRqjMEIwPVa9HUsiCDvs2guOfi8wl6HYj0UYId60QXJBPJfedG9Aey3ouG3xDkonzjvOdt/pub?output=csv" + SPREADSHEET_ID
       + "/gviz/tq?tqx=out:csv&sheet=" + encodeURIComponent(sheetName);
   }
   function fetchAllSheets(){
