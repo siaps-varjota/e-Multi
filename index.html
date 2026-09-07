@@ -331,15 +331,23 @@
   var JANELA_MESES = 4;
   // Só as abas de dados BRUTOS — o painel calcula M1/M2 sozinho a partir
   // delas (não lê mais nenhum valor pronto da aba "Indicadores M1 e M2").
+  // IMPORTANTE: não existem abas separadas por equipe na planilha — os
+  // nomes abaixo são os nomes REAIS das abas (conferidos direto no rodapé
+  // do Google Sheets). O filtro por equipe acontece linha a linha, pela
+  // coluna "equipe_unidade" de cada aba (ver filtrarLinhasPorEquipe).
   var BASE_SHEET_NAMES = [
     "Atendimentos",
     "Participantes Ativ. Coletiva",
     "Resumo Atividade Coletiva",
     "Resumo Reuniões"
   ];
+  // matchKeyword: trecho (sem acento, maiúsculo) que precisa aparecer no
+  // valor da coluna "equipe_unidade" pra a linha pertencer a esta equipe.
+  // Ex.: "EMULTI CROATA DOS MARTINS - Croata" e "EMULTI CROATA DOS
+  // MARTINS" (formatos variam entre abas) casam com "CROATA".
   var EQUIPES = [
-    {key:"centro", label:"EMULTI Centro", suffix:"Centro"},
-    {key:"croata", label:"EMULTI Croatá", suffix:"Croatá"}
+    {key:"centro", label:"EMULTI Centro", suffix:"Centro", matchKeyword:"CENTRO"},
+    {key:"croata", label:"EMULTI Croatá", suffix:"Croatá", matchKeyword:"CROATA"}
   ];
   var currentEquipe = EQUIPES[0];
 
@@ -348,13 +356,15 @@
   }
   function displayListName(name){
     // remove o sufixo " — Centro"/" — Croatá" só pra exibição (o título da
-    // equipe já aparece no topo da página).
+    // equipe já aparece no topo da página). Esse sufixo agora é só uma
+    // CHAVE INTERNA de cache (ver wb.Sheets) — não é mais o nome real da
+    // aba buscada no Google.
     return name.replace(/ — .+$/, '');
   }
   function requiredSheetNames(){
-    // Só as 4 abas de dados brutos desta equipe — nada de Config nem de
-    // Indicadores M1 e M2.
-    return BASE_SHEET_NAMES.map(suffixedName);
+    // Nomes REAIS das abas — sem sufixo de equipe (ver comentário acima
+    // de BASE_SHEET_NAMES).
+    return BASE_SHEET_NAMES.slice();
   }
   function calcularJanelaPeriodo(){
     // "Hook" do período: janela móvel terminando hoje. Se um dia você
@@ -423,6 +433,35 @@
   function sheetToRows(ws){
     if(Array.isArray(ws)) return ws; // já é uma matriz de linhas (vindo do parseCsv)
     return XLSX.utils.sheet_to_json(ws, {header:1, defval:""});
+  }
+
+  // ---------- Filtro por equipe (linha a linha) ----------
+  // Não existem abas separadas por equipe — cada linha da aba tem uma
+  // coluna "equipe_unidade" (ou similar) que identifica a equipe. Aqui a
+  // gente acha essa coluna e mantém só as linhas da equipe selecionada.
+  function normalizeText(s){
+    return String(s||"").toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  }
+  function equipeColIndex(headerRow){
+    for(var i=0;i<headerRow.length;i++){
+      var h = normalizeText(headerRow[i]).replace(/\s+/g,'_');
+      if(h === "EQUIPE_UNIDADE") return i;
+    }
+    for(var j=0;j<headerRow.length;j++){
+      if(normalizeText(headerRow[j]).indexOf("EQUIPE") !== -1) return j;
+    }
+    return -1;
+  }
+  function filtrarLinhasPorEquipe(matrix, equipe){
+    if(!matrix || !matrix.length) return matrix || [];
+    var header = matrix[0];
+    var idx = equipeColIndex(header);
+    if(idx < 0) return matrix; // aba sem coluna de equipe: não filtra
+    var keyword = normalizeText(equipe.matchKeyword || equipe.suffix);
+    var linhas = matrix.slice(1).filter(function(r){
+      return normalizeText(r[idx]).indexOf(keyword) !== -1;
+    });
+    return [header].concat(linhas);
   }
 
   // Parser de CSV manual (RFC4180: respeita campos entre aspas, vírgulas e
@@ -1102,8 +1141,15 @@
         results.forEach(function(r){
           var parsedRows = parseCsv(r.csvText);
           if(!parsedRows.length) return;
-          wb.Sheets[r.name] = parsedRows;
-          wb.SheetNames.push(r.name);
+          // r.name é o nome REAL da aba (sem sufixo). Filtra as linhas pela
+          // equipe selecionada e guarda no workbook sob a chave "sufixada"
+          // — o resto do painel (cálculo, listas) continua lendo por essa
+          // chave, sem precisar saber que a aba é compartilhada entre
+          // equipes.
+          var filtradas = filtrarLinhasPorEquipe(parsedRows, currentEquipe);
+          var key = suffixedName(r.name);
+          wb.Sheets[key] = filtradas;
+          wb.SheetNames.push(key);
         });
 
         // Período: janela móvel calculada aqui mesmo (não existe aba Config
