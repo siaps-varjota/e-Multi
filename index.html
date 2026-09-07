@@ -311,15 +311,14 @@
   // Agora buscamos cada aba separadamente via endpoint gviz/tq (CSV com
   // suporte a CORS de verdade), que funciona para qualquer aba por nome.
   var SPREADSHEET_ID = "1ujHEI_pERAcKmxQRuF9AmgU0bN22w0A9nnpakCVjY18";
-  var INDICADORES_SHEET_NAME = "Indicadores M1 e M2";
   var CONFIG_SHEET_NAME = "Config";
+  // Só as abas de dados BRUTOS — o painel calcula M1/M2 sozinho a partir
+  // delas (não lê mais nenhum valor pronto de uma aba "Indicadores").
   var BASE_SHEET_NAMES = [
-    INDICADORES_SHEET_NAME,
     "Atendimentos",
     "Participantes Ativ. Coletiva",
-    "Pessoas atendidas",
-    "Resumo Reuniões",
-    "Resumo Atividade Coletiva"
+    "Resumo Atividade Coletiva",
+    "Resumo Reuniões"
   ];
   var EQUIPES = [
     {key:"centro", label:"EMULTI Centro", suffix:"Centro"},
@@ -337,7 +336,7 @@
   }
   function requiredSheetNames(){
     // Nomes reais das abas no Sheets para a equipe atual, mais a aba
-    // "Config" (compartilhada, sem sufixo, com o período de referência).
+    // "Config" (compartilhada, sem sufixo, só com o mês de referência).
     return BASE_SHEET_NAMES.map(suffixedName).concat([CONFIG_SHEET_NAME]);
   }
   function sheetCsvUrl(sheetName){
@@ -359,36 +358,7 @@
   var CLASS_PILL_HEX = {"Ótimo":"#2F6F5E","Bom":"#6B8F71","Suficiente":"#C68A3D","Regular":"#B5474B"};
   var CLASS_ARC_HEX = {"Regular":"#DC4C4C","Suficiente":"#F2A93B","Bom":"#4CAF6D","Ótimo":"#3B7DDD"};
 
-  var M1_FIELDS = [
-    ["Nº de atendimentos individuais","atendimentosIndividuais","num"],
-    ["Nº de participações em atividades coletivas","participacoesColetivas","num"],
-    ["Numerador (atendimentos individuais","numeradorM1","num"],
-    ["Denominador (nº de pessoas atendidas)","denominadorM1","num"],
-    ["M1 = Numerador","m1","num"],
-    ["Classificação M1","classificacaoM1","str"]
-  ];
-  var M2_FIELDS = [
-    ["Nº de atividades coletivas (total)","atividadesTotais","num"],
-    ["Nº de atividades coletivas c/ 2+","atividadesCompartilhadas","num"],
-    ["Nº de reuniões (total)","reunioesTotais","num"],
-    ["Nº de reuniões c/ 2+","reunioesCompartilhadas","num"],
-    ["Denominador (atendimentos individuais","denominadorM2","num"],
-    ["Numerador (atividades coletivas","numeradorM2","num"],
-    ["M2 (%) = Numerador","m2","pct"],
-    ["Classificação M2","classificacaoM2","str"]
-  ];
-  var DESEMPENHO_FIELDS = [
-    ["Pontos M1","pontosM1","num"],
-    ["Pontos M2","pontosM2","num"],
-    ["Nota final","notaFinal","num"],
-    ["Desempenho quadrimestral final","desempenho","str"]
-  ];
-  var ALL_FIELDS = M1_FIELDS.concat(M2_FIELDS, DESEMPENHO_FIELDS);
-  var NOTES_PREFIX = "OBSERVAÇÕES E LIMITAÇÕES";
-
   // ---------- Listas complementares ----------
-  // Vêm todas do MESMO arquivo (a versão .xlsx da planilha publicada traz
-  // todas as abas). Basta bater com o nome exato da aba no Google Sheets.
   function m1ListNames(){ return ["Atendimentos", "Participantes Ativ. Coletiva", "Pessoas atendidas"].map(suffixedName); }
   function m2ListNames(){ return ["Atendimentos", "Resumo Reuniões", "Resumo Atividade Coletiva"].map(suffixedName); }
   var latestSheets = {}; // nome da aba -> {headers, rows} | {error}
@@ -423,17 +393,6 @@
   function arcHex(c){ return CLASS_ARC_HEX[c] || "#9AA69E"; }
 
   // ---------- Parsing ----------
-  function findIndicadoresSheetName(wb){
-    var expected = suffixedName(INDICADORES_SHEET_NAME);
-    if(wb.SheetNames.indexOf(expected) !== -1) return expected;
-    for(var i=0;i<wb.SheetNames.length;i++){
-      var name = wb.SheetNames[i];
-      var ws = wb.Sheets[name];
-      var a1 = ws["A1"] ? String(ws["A1"].v||"") : "";
-      if(a1.indexOf("Indicadores M1 e M2") === 0) return name;
-    }
-    return null;
-  }
   function sheetToRows(ws){
     if(Array.isArray(ws)) return ws; // já é uma matriz de linhas (vindo do parseCsv)
     return XLSX.utils.sheet_to_json(ws, {header:1, defval:""});
@@ -469,59 +428,200 @@
     return rows;
   }
 
-  function parseValue(raw, type){
-    if(raw===undefined || raw===null) return null;
-    var s = String(raw).trim();
-    if(s === "" || s === "—") return null;
-    if(type==="str") return s;
-    if(type==="num"){
-      var n = parseFloat(s.replace(",","."));
-      return isNaN(n) ? null : n;
+  // Datas nas abas brutas vêm como texto dd/mm/aaaa (é assim que o script
+  // de extração grava). Também aceita aaaa-mm-dd como reforço, caso a
+  // célula tenha sido digitada nesse formato.
+  function parseBRDate(raw){
+    var s = String(raw||"").trim();
+    if(!s) return null;
+    var m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if(m) return new Date(+m[3], +m[2]-1, +m[1]);
+    m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+    if(m) return new Date(+m[1], +m[2]-1, +m[3]);
+    return null;
+  }
+  function fmtBRDate(d){
+    if(!d) return "—";
+    return String(d.getDate()).padStart(2,'0') + "/" + String(d.getMonth()+1).padStart(2,'0') + "/" + d.getFullYear();
+  }
+  function withinPeriod(dateVal, inicio, fim){
+    return dateVal && dateVal >= inicio && dateVal <= fim;
+  }
+  function colIndex(headerRow, name){
+    for(var i=0;i<headerRow.length;i++){
+      if(String(headerRow[i]||"").trim() === name) return i;
     }
-    if(type==="pct"){
-      var p = parseFloat(s.replace("%","").replace(",",".").trim());
-      return isNaN(p) ? null : p;
-    }
-    return s;
+    return -1;
+  }
+  function toInt(v){
+    var n = parseInt(String(v===undefined||v===null?"":v).trim(), 10);
+    return isNaN(n) ? 0 : n;
   }
 
-  function extractIndicadores(rows){
-    if(!rows.length) return {error:"noSheet"};
-    var titleText = String(rows[0][0] || "");
-    if(titleText.indexOf("Indicadores M1 e M2") !== 0) return {error:"noSheet"};
+  var PONTOS_POR_CLASSE = {"Regular":0.25, "Suficiente":0.5, "Bom":0.75, "Ótimo":1};
 
-    var equipe = "Equipe";
-    var parts = titleText.split(" — ");
-    if(parts.length > 1) equipe = parts.slice(1).join(" — ").trim();
+  function classificarM1(v){
+    if(v===null) return "—";
+    if(v>3) return "Ótimo";
+    if(v>2) return "Bom";
+    if(v>1) return "Suficiente";
+    return "Regular";
+  }
+  function classificarM2(v){
+    if(v===null) return "—";
+    if(v>5) return "Ótimo";
+    if(v>2.5) return "Bom";
+    if(v>1) return "Suficiente";
+    return "Regular";
+  }
+  function classificarDesempenho(nota){
+    if(nota===null) return "—";
+    if(nota>7.5) return "Ótimo";
+    if(nota>=5) return "Bom";
+    if(nota>=2.6) return "Suficiente";
+    return "Regular";
+  }
 
-    var data = {};
-    var notes = [];
-    var inNotes = false;
-    for(var r=1;r<rows.length;r++){
-      var label = String(rows[r][0] || "").trim();
-      var valueCell = rows[r][1];
-      if(!label) continue;
-      if(label.indexOf(NOTES_PREFIX) === 0){ inNotes = true; continue; }
-      if(inNotes){ notes.push(label); continue; }
-      if(valueCell === "" || valueCell === undefined) continue;
-      for(var f=0; f<ALL_FIELDS.length; f++){
-        var field = ALL_FIELDS[f];
-        if(data[field[1]] !== undefined) continue;
-        if(label.indexOf(field[0]) === 0){
-          data[field[1]] = parseValue(valueCell, field[2]);
-          break;
-        }
-      }
+  var NOTAS_METODOLOGICAS = [
+    "Cálculo feito pelo próprio painel, direto dos dados brutos extraídos do e-SUS PEC (Atendimentos + Registro Tardio + Atividade Coletiva + Reuniões) para esta equipe/EMULTI, seguindo as fórmulas das Notas Metodológicas M1 (NT 43/2026-CGIAD/DEAPS/SAPS/MS) e M2 (NT 44/2026-CGIAD/DEAPS/SAPS/MS), na janela dos últimos 4 meses (ver 'Período' no topo da página) — não um quadrimestre fixo do calendário.",
+    "M1 usa NOME da pessoa (a nota oficial usa CPF/CNS) — pessoas diferentes com o mesmo nome seriam contadas como se fossem uma só.",
+    "M2 oficial soma 3 componentes: atendimentos individuais compartilhados, atividades coletivas compartilhadas e compartilhamento de cuidado (PEC). Esta extração só consegue aproximar as parcelas de 'atividades coletivas' e 'reuniões', usando 'nº de profissionais envolvidos ≥ 2' como indício de ação compartilhada — não há como checar CNS/CBO de cada profissional pra aplicar a regra oficial à risca.",
+    "Atendimentos individuais compartilhados e compartilhamento de cuidado (PEC) NÃO entram no numerador do M2 aqui (a Lista de Atendimentos do e-SUS não indica se um atendimento individual teve mais de um profissional) — por isso o M2 calculado aqui tende a ficar ABAIXO do valor oficial do indicador.",
+    "Reuniões só contam oficialmente pra M2 quando registradas com o tema 'Discussão de Caso/Projeto Terapêutico Singular' — como esta extração não verifica o tema, reuniões com 2+ profissionais entram aqui mesmo sem esse tema, o que pode puxar o M2 um pouco PRA CIMA nesse componente específico.",
+    "'Desempenho quadrimestral' NÃO é uma fórmula oficial do Ministério da Saúde — é uma síntese própria: Nota final = pontos M1 × 6 + pontos M2 × 4 (pontos por classificação: Regular=0,25, Suficiente=0,5, Bom=0,75, Ótimo=1), classificada como Regular < 2,6, Suficiente 2,6 a 4,9, Bom 5 a 7,5, Ótimo > 7,5 — pra dar uma visão geral rápida; os indicadores oficiais continuam sendo M1 e M2 separados."
+  ];
+
+  // Motor de cálculo: recebe o "workbook" (abas já em formato de matriz de
+  // linhas) e o período {inicio, fim} (objetos Date) e calcula M1, M2 e o
+  // Desempenho quadrimestral direto dos dados brutos — replica a lógica do
+  // extrair_esus_unificado.py (_calcular_indicadores_m1_m2), mas já
+  // filtrando pela janela móvel de 4 meses.
+  function calcularIndicadoresDoPeriodo(wb, periodo){
+    function rowsOf(baseName){
+      var ws = wb.Sheets[suffixedName(baseName)];
+      return ws ? sheetToRows(ws) : [];
     }
 
-    return {equipe: equipe, data: data, notes: notes};
+    // ---------- Atendimentos ----------
+    var atRows = rowsOf("Atendimentos");
+    var atHeader = atRows[0] || [];
+    var iData = colIndex(atHeader, "data_hora");
+    var iNome = colIndex(atHeader, "nome");
+    var atFiltradas = atRows.slice(1).filter(function(r){
+      var nome = String(r[iNome]||"").trim();
+      return nome && withinPeriod(parseBRDate(r[iData]), periodo.inicio, periodo.fim);
+    });
+    var atendimentosIndividuais = atFiltradas.length;
+
+    // ---------- Participantes Ativ. Coletiva ----------
+    var partRows = rowsOf("Participantes Ativ. Coletiva");
+    var partHeader = partRows[0] || [];
+    var iPData = colIndex(partHeader, "data");
+    var iPNome = colIndex(partHeader, "participante");
+    var partFiltradas = partRows.slice(1).filter(function(r){
+      var nome = String(r[iPNome]||"").trim();
+      return nome && nome.indexOf("(sem lista nominal") !== 0
+        && withinPeriod(parseBRDate(r[iPData]), periodo.inicio, periodo.fim);
+    });
+    var participacoesColetivas = partFiltradas.length;
+
+    // ---------- M1: numerador/denominador ----------
+    var numeradorM1 = atendimentosIndividuais + participacoesColetivas;
+    var pessoasSet = {}; // nome em maiúsculas -> {at, part}
+    atFiltradas.forEach(function(r){
+      var chave = String(r[iNome]).trim().toUpperCase();
+      if(!pessoasSet[chave]) pessoasSet[chave] = {nome:String(r[iNome]).trim(), at:0, part:0};
+      pessoasSet[chave].at++;
+    });
+    partFiltradas.forEach(function(r){
+      var chave = String(r[iPNome]).trim().toUpperCase();
+      if(!pessoasSet[chave]) pessoasSet[chave] = {nome:String(r[iPNome]).trim(), at:0, part:0};
+      pessoasSet[chave].part++;
+    });
+    var pessoasLista = Object.keys(pessoasSet).map(function(k){ return pessoasSet[k]; })
+      .sort(function(a,b){ return a.nome.localeCompare(b.nome,'pt-BR'); });
+    var denominadorM1 = pessoasLista.length;
+    var m1 = denominadorM1 ? (numeradorM1/denominadorM1) : null;
+    var classificacaoM1 = classificarM1(m1);
+
+    // ---------- Resumo Atividade Coletiva ----------
+    var racRows = rowsOf("Resumo Atividade Coletiva");
+    var racHeader = racRows[0] || [];
+    var iRacData = colIndex(racHeader, "data");
+    var iRacTotalProf = colIndex(racHeader, "qtd_total_profissionais");
+    var iRacProfEnv = colIndex(racHeader, "qtd_profissionais_envolvidos");
+    var racFiltradas = racRows.slice(1).filter(function(r){
+      return withinPeriod(parseBRDate(r[iRacData]), periodo.inicio, periodo.fim);
+    });
+    var atividadesTotais = racFiltradas.length;
+    var atividadesCompartilhadas = racFiltradas.filter(function(r){
+      var totalProf = iRacTotalProf>=0 && r[iRacTotalProf]!=="" ? toInt(r[iRacTotalProf]) : 1+toInt(r[iRacProfEnv]);
+      return totalProf >= 2;
+    }).length;
+
+    // ---------- Resumo Reuniões ----------
+    var rrRows = rowsOf("Resumo Reuniões");
+    var rrHeader = rrRows[0] || [];
+    var iRrData = colIndex(rrHeader, "data");
+    var iRrQtd = colIndex(rrHeader, "qtd_participantes");
+    var rrFiltradas = rrRows.slice(1).filter(function(r){
+      return withinPeriod(parseBRDate(r[iRrData]), periodo.inicio, periodo.fim);
+    });
+    var reunioesTotais = rrFiltradas.length;
+    var reunioesCompartilhadas = rrFiltradas.filter(function(r){ return toInt(r[iRrQtd]) >= 2; }).length;
+
+    // ---------- M2 ----------
+    var numeradorM2 = atividadesCompartilhadas + reunioesCompartilhadas;
+    var denominadorM2 = atendimentosIndividuais + numeradorM2;
+    var m2 = denominadorM2 ? (numeradorM2/denominadorM2*100) : null;
+    var classificacaoM2 = classificarM2(m2);
+
+    // ---------- Desempenho quadrimestral (síntese própria) ----------
+    var pontosM1 = PONTOS_POR_CLASSE[classificacaoM1];
+    var pontosM2 = PONTOS_POR_CLASSE[classificacaoM2];
+    var pontosM1Pesados = pontosM1!==undefined ? pontosM1*6 : null;
+    var pontosM2Pesados = pontosM2!==undefined ? pontosM2*4 : null;
+    var notaFinal = (pontosM1Pesados!==null && pontosM2Pesados!==null) ? (pontosM1Pesados+pontosM2Pesados) : null;
+    var desempenho = classificarDesempenho(notaFinal);
+
+    // ---------- "Pessoas atendidas" (lista dinâmica, só do período) ----------
+    var pessoasAtendidasHeaders = ["Nome","Atendimentos","Participantes Ativ. Coletiva","Total"];
+    var pessoasAtendidasRows = pessoasLista.map(function(p){
+      return [p.nome, p.at, p.part, p.at+p.part];
+    });
+
+    return {
+      equipe: currentEquipe.label,
+      data: {
+        atendimentosIndividuais: atendimentosIndividuais,
+        participacoesColetivas: participacoesColetivas,
+        numeradorM1: numeradorM1,
+        denominadorM1: denominadorM1,
+        m1: m1,
+        classificacaoM1: classificacaoM1,
+        atividadesTotais: atividadesTotais,
+        atividadesCompartilhadas: atividadesCompartilhadas,
+        reunioesTotais: reunioesTotais,
+        reunioesCompartilhadas: reunioesCompartilhadas,
+        denominadorM2: denominadorM2,
+        numeradorM2: numeradorM2,
+        m2: m2,
+        classificacaoM2: classificacaoM2,
+        pontosM1: pontosM1Pesados,
+        pontosM2: pontosM2Pesados,
+        notaFinal: notaFinal,
+        desempenho: desempenho
+      },
+      notes: NOTAS_METODOLOGICAS,
+      pessoasAtendidas: {headers: pessoasAtendidasHeaders, rows: pessoasAtendidasRows}
+    };
   }
 
   // ---------- Listas ----------
-  function populateSheetsCache(wb, indicadoresSheetName){
+  function populateSheetsCache(wb){
     latestSheets = {};
     wb.SheetNames.forEach(function(name){
-      if(name === indicadoresSheetName) return;
+      if(name === CONFIG_SHEET_NAME) return;
       var rows = sheetToRows(wb.Sheets[name]).filter(function(r){
         return r.some(function(c){ return String(c).trim() !== ""; });
       });
