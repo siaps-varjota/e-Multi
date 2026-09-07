@@ -345,27 +345,30 @@
 (function(){
   "use strict";
 
-  // ID real da planilha (do link "Compartilhar", não do "Publicar na web").
-  // O link antigo de "Publicar na web" só expunha 1 aba mesmo pedindo xlsx
-  // (o Google ignorava o parâmetro), o que quebrava o fetch no navegador.
-  // Agora buscamos cada aba separadamente via endpoint gviz/tq (CSV com
-  // suporte a CORS de verdade), que funciona para qualquer aba por nome.
-  var SPREADSHEET_ID = "1ujHEI_pERAcKmxQRuF9AmgU0bN22w0A9nnpakCVjY18";
+  // Links "Publicar na web" (Arquivo → Compartilhar → Publicar na web) de
+  // cada aba de dados BRUTOS. Cada aba tem seu próprio link com "gid"
+  // fixo — é assim que o Google publica abas individuais como CSV com
+  // suporte real a CORS no navegador. Uma única planilha traz os dados de
+  // TODAS as equipes juntos; a coluna "equipe_unidade" é o que diferencia
+  // Centro de Croatá (ver filtrarLinhasPorEquipe()).
+  var BASE_SHEET_URLS = {
+    "Atendimentos": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTu5mR4yjXRqjMEIwPVa9HUsiCDvs2guOfi8wl6HYj0UYId60QXJBPJfedG9Aey3ouG3xDkonzjvOdt/pub?gid=206953360&single=true&output=csv",
+    "Resumo Atividade Coletiva": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTu5mR4yjXRqjMEIwPVa9HUsiCDvs2guOfi8wl6HYj0UYId60QXJBPJfedG9Aey3ouG3xDkonzjvOdt/pub?gid=1908952718&single=true&output=csv",
+    "Participantes Ativ. Coletiva": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTu5mR4yjXRqjMEIwPVa9HUsiCDvs2guOfi8wl6HYj0UYId60QXJBPJfedG9Aey3ouG3xDkonzjvOdt/pub?gid=2132244874&single=true&output=csv",
+    "Resumo Reuniões": "https://docs.google.com/spreadsheets/d/e/2PACX-1vTu5mR4yjXRqjMEIwPVa9HUsiCDvs2guOfi8wl6HYj0UYId60QXJBPJfedG9Aey3ouG3xDkonzjvOdt/pub?gid=2014497185&single=true&output=csv"
+  };
+  // Só as abas de dados BRUTOS — o painel calcula M1/M2 sozinho a partir
+  // delas (não lê mais nenhum valor pronto da aba "Indicadores M1 e M2").
+  var BASE_SHEET_NAMES = Object.keys(BASE_SHEET_URLS);
   // Janela móvel de referência: "hoje menos N meses" até hoje. Não existe
   // aba "Config" nem período explícito na planilha — o próprio painel
   // calcula essa janela. Mude só este número se quiser 3, 4 ou 6 meses.
   var JANELA_MESES = 4;
-  // Só as abas de dados BRUTOS — o painel calcula M1/M2 sozinho a partir
-  // delas (não lê mais nenhum valor pronto da aba "Indicadores M1 e M2").
-  var BASE_SHEET_NAMES = [
-    "Atendimentos",
-    "Participantes Ativ. Coletiva",
-    "Resumo Atividade Coletiva",
-    "Resumo Reuniões"
-  ];
+  // "match" é o texto (sem acento, maiúsculo) usado para reconhecer as
+  // linhas de cada equipe dentro da coluna "equipe_unidade" das abas.
   var EQUIPES = [
-    {key:"centro", label:"EMULTI Centro", suffix:"Centro"},
-    {key:"croata", label:"EMULTI Croatá", suffix:"Croatá"}
+    {key:"centro", label:"EMULTI Centro", suffix:"Centro", match:"CENTRO"},
+    {key:"croata", label:"EMULTI Croatá", suffix:"Croatá", match:"CROATA"}
   ];
   var currentEquipe = EQUIPES[0];
 
@@ -377,11 +380,6 @@
     // equipe já aparece no topo da página).
     return name.replace(/ — .+$/, '');
   }
-  function requiredSheetNames(){
-    // Só as 4 abas de dados brutos desta equipe — nada de Config nem de
-    // Indicadores M1 e M2.
-    return BASE_SHEET_NAMES.map(suffixedName);
-  }
   function calcularJanelaPeriodo(){
     // "Hook" do período: janela móvel terminando hoje. Se um dia você
     // quiser voltar a ler o período de uma célula da planilha, é só trocar
@@ -392,13 +390,27 @@
     inicio.setHours(0,0,0,0);
     return {inicio: inicio, fim: fim};
   }
-  function sheetCsvUrl(sheetName){
-    return "https://docs.google.com/spreadsheets/d/" + SPREADSHEET_ID
-      + "/gviz/tq?tqx=out:csv&sheet=" + encodeURIComponent(sheetName);
+  function normalizeUpper(s){
+    return String(s||"").toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+  }
+  // Cada aba traz Centro e Croatá misturados; filtra pelas linhas da
+  // equipe selecionada usando a coluna "equipe_unidade". Se a aba não
+  // tiver essa coluna (ex.: uma aba agregada sem quebra por equipe),
+  // mantém todas as linhas como vieram.
+  function filtrarLinhasPorEquipe(parsedRows){
+    if(!parsedRows.length) return parsedRows;
+    var header = parsedRows[0];
+    var iEq = colIndex(header, "equipe_unidade");
+    if(iEq < 0) return parsedRows;
+    var alvo = currentEquipe.match;
+    var filtradas = parsedRows.slice(1).filter(function(r){
+      return normalizeUpper(r[iEq]).indexOf(alvo) !== -1;
+    });
+    return [header].concat(filtradas);
   }
   function fetchAllSheets(){
-    return Promise.all(requiredSheetNames().map(function(name){
-      return fetch(sheetCsvUrl(name), {cache:'no-store'})
+    return Promise.all(BASE_SHEET_NAMES.map(function(name){
+      return fetch(BASE_SHEET_URLS[name], {cache:'no-store'})
         .then(function(res){
           if(!res.ok) throw new Error('HTTP ' + res.status);
           return res.text();
@@ -1128,8 +1140,9 @@
         results.forEach(function(r){
           var parsedRows = parseCsv(r.csvText);
           if(!parsedRows.length) return;
-          wb.Sheets[r.name] = parsedRows;
-          wb.SheetNames.push(r.name);
+          var name = suffixedName(r.name);
+          wb.Sheets[name] = filtrarLinhasPorEquipe(parsedRows);
+          wb.SheetNames.push(name);
         });
 
         // Período: janela móvel calculada aqui mesmo (não existe aba Config
