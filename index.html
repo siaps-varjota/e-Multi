@@ -171,6 +171,17 @@
   .notes-list{margin:0;padding-left:20px;font-size:13px;color:var(--ink-soft);}
   .notes-list li{margin-bottom:12px;}
 
+  .links-list{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:8px;}
+  .links-list li{margin:0;}
+  .links-list a{
+    display:inline-flex;align-items:center;gap:8px;
+    font-size:13.5px;color:var(--ink);text-decoration:none;
+    border:1px solid var(--line);border-radius:8px;padding:9px 14px;
+    background:var(--paper);transition:border-color .15s ease;
+  }
+  .links-list a:hover{border-color:var(--header-bg);}
+  .links-list a svg{width:14px;height:14px;flex:none;color:var(--ink-soft);}
+
   .indicator-tab-head{margin-bottom:20px;}
   .indicator-tab-head h2{font-size:24px;font-weight:500;margin:0 0 4px;}
   .indicator-tab-head p{margin:0;font-size:13px;color:var(--ink-soft);}
@@ -297,6 +308,35 @@
   <div id="tabNotas" class="tab-panel">
     <div class="card">
       <ul class="notes-list" id="notesList"></ul>
+    </div>
+    <p class="section-title">Tabelas de origem</p>
+    <div class="card">
+      <ul class="links-list">
+        <li><a href="https://docs.google.com/spreadsheets/d/e/2PACX-1vTu5mR4yjXRqjMEIwPVa9HUsiCDvs2guOfi8wl6HYj0UYId60QXJBPJfedG9Aey3ouG3xDkonzjvOdt/pub?gid=206953360&single=true&output=csv" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 3h7v7M21 3l-9 9M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg>
+          Atendimentos
+        </a></li>
+        <li><a href="https://docs.google.com/spreadsheets/d/e/2PACX-1vTu5mR4yjXRqjMEIwPVa9HUsiCDvs2guOfi8wl6HYj0UYId60QXJBPJfedG9Aey3ouG3xDkonzjvOdt/pub?gid=1908952718&single=true&output=csv" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 3h7v7M21 3l-9 9M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg>
+          Resumo Atividade Coletiva
+        </a></li>
+        <li><a href="https://docs.google.com/spreadsheets/d/e/2PACX-1vTu5mR4yjXRqjMEIwPVa9HUsiCDvs2guOfi8wl6HYj0UYId60QXJBPJfedG9Aey3ouG3xDkonzjvOdt/pub?gid=2132244874&single=true&output=csv" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 3h7v7M21 3l-9 9M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg>
+          Participantes Ativ. Coletiva
+        </a></li>
+        <li><a href="https://docs.google.com/spreadsheets/d/e/2PACX-1vTu5mR4yjXRqjMEIwPVa9HUsiCDvs2guOfi8wl6HYj0UYId60QXJBPJfedG9Aey3ouG3xDkonzjvOdt/pub?gid=1476687437&single=true&output=csv" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 3h7v7M21 3l-9 9M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg>
+          Participantes Reuniões
+        </a></li>
+        <li><a href="https://docs.google.com/spreadsheets/d/e/2PACX-1vTu5mR4yjXRqjMEIwPVa9HUsiCDvs2guOfi8wl6HYj0UYId60QXJBPJfedG9Aey3ouG3xDkonzjvOdt/pub?gid=2014497185&single=true&output=csv" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 3h7v7M21 3l-9 9M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg>
+          Resumo Reuniões
+        </a></li>
+        <li><a href="https://docs.google.com/spreadsheets/d/e/2PACX-1vTu5mR4yjXRqjMEIwPVa9HUsiCDvs2guOfi8wl6HYj0UYId60QXJBPJfedG9Aey3ouG3xDkonzjvOdt/pub?gid=349987817&single=true&output=csv" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 3h7v7M21 3l-9 9M21 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5"/></svg>
+          Pessoas atendidas
+        </a></li>
+      </ul>
     </div>
   </div>
 </main>
