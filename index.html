@@ -778,6 +778,13 @@
     var n = parseInt(String(v===undefined||v===null?"":v).trim(), 10);
     return isNaN(n) ? 0 : n;
   }
+  // Normaliza texto pra comparar tipo_atividade sem depender de acento,
+  // maiúscula/minúscula ou espaço/barra diferente ("Avaliação/Procedimento
+  // coletivo" vs "Avaliação / Procedimento Coletivo" etc.).
+  function normalizarTexto(v){
+    return String(v||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"")
+      .toLowerCase().replace(/\s+/g," ").replace(/\s*\/\s*/g,"/").trim();
+  }
 
   var PONTOS_POR_CLASSE = {"Regular":0.25, "Suficiente":0.5, "Bom":0.75, "Ótimo":1};
 
@@ -806,9 +813,10 @@
   var NOTAS_METODOLOGICAS = [
     "Cálculo feito pelo próprio painel, direto dos dados brutos extraídos do e-SUS PEC (Atendimentos + Registro Tardio + Atividade Coletiva + Reuniões) para esta equipe/EMULTI, seguindo as fórmulas das Notas Metodológicas M1 (NT 43/2026-CGIAD/DEAPS/SAPS/MS) e M2 (NT 44/2026-CGIAD/DEAPS/SAPS/MS), na janela dos últimos 4 meses (ver 'Período' no topo da página) — não um quadrimestre fixo do calendário.",
     "M1 usa NOME da pessoa (a nota oficial usa CPF/CNS) — pessoas diferentes com o mesmo nome seriam contadas como se fossem uma só.",
-    "M2 oficial soma 3 componentes: atendimentos individuais compartilhados, atividades coletivas compartilhadas e compartilhamento de cuidado (PEC). Esta extração só consegue aproximar as parcelas de 'atividades coletivas' e 'reuniões', usando 'nº de profissionais envolvidos ≥ 2' como indício de ação compartilhada — não há como checar CNS/CBO de cada profissional pra aplicar a regra oficial à risca.",
+    "M2 oficial soma 3 componentes: atendimentos individuais compartilhados, atividades coletivas compartilhadas e compartilhamento de cuidado (PEC). Esta extração só consegue aproximar as parcelas de 'atividades coletivas' e 'reuniões', usando 'nº de profissionais envolvidos ≥ 2' como indício de ação compartilhada — não há como checar CBO/CNS de cada profissional (principal/secundário) pra aplicar a regra oficial à risca.",
     "Atendimentos individuais compartilhados e compartilhamento de cuidado (PEC) NÃO entram no numerador do M2 aqui (a Lista de Atendimentos do e-SUS não indica se um atendimento individual teve mais de um profissional) — por isso o M2 calculado aqui tende a ficar ABAIXO do valor oficial do indicador.",
-    "Reuniões só contam oficialmente pra M2 quando registradas com o tema 'Discussão de Caso/Projeto Terapêutico Singular' — como esta extração não verifica o tema, reuniões com 2+ profissionais entram aqui mesmo sem esse tema, o que pode puxar o M2 um pouco PRA CIMA nesse componente específico.",
+    "Atividade Coletiva só conta como 'compartilhada' aqui quando o tipo_atividade é Educação em saúde, Atendimento em grupo, Avaliação/Procedimento coletivo ou Mobilização social (códigos 04-07) E tem 2+ profissionais envolvidos — sem CBO/CNS de cada um, não dá pra confirmar que um deles é de fato cadastrado em eMulti, então ainda é uma aproximação.",
+    "Reuniões (Resumo Reuniões) só contam oficialmente pra M2 quando são dos tipos 'Reunião de equipe', 'Reunião com outras equipes de saúde' ou 'Reunião intersetorial' (códigos 01-03) E registradas com o tema 'Discussão de Caso/Projeto Terapêutico Singular' — como a aba de reuniões não tem uma coluna de tema, esta extração conta qualquer reunião com 2+ profissionais, o que pode puxar o M2 um pouco PRA CIMA nesse componente específico.",
     "'Desempenho quadrimestral' NÃO é uma fórmula oficial do Ministério da Saúde — é uma síntese própria: Nota final = pontos M1 × 6 + pontos M2 × 4 (pontos por classificação: Regular=0,25, Suficiente=0,5, Bom=0,75, Ótimo=1), classificada como Regular < 2,6, Suficiente 2,6 a 4,9, Bom 5 a 7,5, Ótimo > 7,5 — pra dar uma visão geral rápida; os indicadores oficiais continuam sendo M1 e M2 separados."
   ];
 
@@ -869,15 +877,24 @@
     var racRows = rowsOf("Resumo Atividade Coletiva");
     var racHeader = racRows[0] || [];
     var iRacData = colIndex(racHeader, "data");
+    var iRacTipo = colIndex(racHeader, "tipo_atividade");
     var iRacTotalProf = colIndex(racHeader, "qtd_total_profissionais");
     var iRacProfEnv = colIndex(racHeader, "qtd_profissionais_envolvidos");
+    // Só estes 4 tipos (códigos 04-07 da Atividade Coletiva) contam como
+    // "Atividade Coletiva Compartilhada" pra M2 — reuniões (códigos 01-03)
+    // vêm de outra aba (Resumo Reuniões) e têm regra própria.
+    var TIPOS_ATIV_COLETIVA_COMPARTILHADA = [
+      "educacao em saude", "atendimento em grupo",
+      "avaliacao/procedimento coletivo", "mobilizacao social"
+    ];
     var racFiltradas = racRows.slice(1).filter(function(r){
       return withinPeriod(parseBRDate(r[iRacData]), periodo.inicio, periodo.fim);
     });
     var atividadesTotais = racFiltradas.length;
     var atividadesCompartilhadas = racFiltradas.filter(function(r){
       var totalProf = iRacTotalProf>=0 && r[iRacTotalProf]!=="" ? toInt(r[iRacTotalProf]) : 1+toInt(r[iRacProfEnv]);
-      return totalProf >= 2;
+      var tipoOk = iRacTipo<0 || TIPOS_ATIV_COLETIVA_COMPARTILHADA.indexOf(normalizarTexto(r[iRacTipo])) >= 0;
+      return totalProf >= 2 && tipoOk;
     }).length;
 
     // ---------- Resumo Reuniões ----------
@@ -1320,7 +1337,7 @@
     // ---- Meta do quadrimestre: alvo de atendimentos/ações compartilhadas
     // pra bater "Bom" e "Ótimo" em M1 e M2, com ritmo médio necessário. ----
     var metaM1 = calcularMetasQuadrimestre(d.numeradorM1, d.denominadorM1, M1_META_THRESHOLDS, 'atend.',
-      'atendimentos (retornos) ou participação em Atividade Coletiva de pessoas que foram atendidas nos últimos 4 meses');
+      'atendimentos (retornos) de pessoas que foram atendidas nos últimos 4 meses');
     var metaM2 = calcularMetasQuadrimestre(d.numeradorM2, d.denominadorM2, M2_META_THRESHOLDS, 'ações');
     document.getElementById('metaQuadRow').innerHTML =
         metaQuadrimestreHTML('Meta do quadrimestre — M1', d.denominadorM1, 'pessoas atendidas', metaM1.cards, metaM1.preliminar)
