@@ -220,7 +220,7 @@
   <div class="topbar-left">
     <p class="kicker">Atenção Primária</p>
     <h1>Painel eMulti</h1>
-    <p class="tagline">Indicadores M1 e M2 lidos direto da planilha publicada no Google Sheets.</p>
+    <p class="tagline">Indicadores M1 e M2 calculados aqui a partir dos dados brutos da planilha publicada no Google Sheets.</p>
   </div>
   <div class="topbar-right">
     <div class="topbar-meta">
@@ -311,9 +311,12 @@
   // Agora buscamos cada aba separadamente via endpoint gviz/tq (CSV com
   // suporte a CORS de verdade), que funciona para qualquer aba por nome.
   var SPREADSHEET_ID = "1ujHEI_pERAcKmxQRuF9AmgU0bN22w0A9nnpakCVjY18";
-  var CONFIG_SHEET_NAME = "Config";
+  // Janela móvel de referência: "hoje menos N meses" até hoje. Não existe
+  // aba "Config" nem período explícito na planilha — o próprio painel
+  // calcula essa janela. Mude só este número se quiser 3, 4 ou 6 meses.
+  var JANELA_MESES = 4;
   // Só as abas de dados BRUTOS — o painel calcula M1/M2 sozinho a partir
-  // delas (não lê mais nenhum valor pronto de uma aba "Indicadores").
+  // delas (não lê mais nenhum valor pronto da aba "Indicadores M1 e M2").
   var BASE_SHEET_NAMES = [
     "Atendimentos",
     "Participantes Ativ. Coletiva",
@@ -335,12 +338,22 @@
     return name.replace(/ — .+$/, '');
   }
   function requiredSheetNames(){
-    // Nomes reais das abas no Sheets para a equipe atual, mais a aba
-    // "Config" (compartilhada, sem sufixo, só com o mês de referência).
-    return BASE_SHEET_NAMES.map(suffixedName).concat([CONFIG_SHEET_NAME]);
+    // Só as 4 abas de dados brutos desta equipe — nada de Config nem de
+    // Indicadores M1 e M2.
+    return BASE_SHEET_NAMES.map(suffixedName);
+  }
+  function calcularJanelaPeriodo(){
+    // "Hook" do período: janela móvel terminando hoje. Se um dia você
+    // quiser voltar a ler o período de uma célula da planilha, é só trocar
+    // o corpo desta função — o resto do painel não muda.
+    var fim = new Date();
+    fim.setHours(23,59,59,999);
+    var inicio = new Date(fim.getFullYear(), fim.getMonth()-JANELA_MESES, fim.getDate());
+    inicio.setHours(0,0,0,0);
+    return {inicio: inicio, fim: fim};
   }
   function sheetCsvUrl(sheetName){
-    return "https://docs.google.com/spreadsheets/d/e/2PACX-1vTu5mR4yjXRqjMEIwPVa9HUsiCDvs2guOfi8wl6HYj0UYId60QXJBPJfedG9Aey3ouG3xDkonzjvOdt/pub?output=csv" + SPREADSHEET_ID
+    return "https://docs.google.com/spreadsheets/d/" + SPREADSHEET_ID
       + "/gviz/tq?tqx=out:csv&sheet=" + encodeURIComponent(sheetName);
   }
   function fetchAllSheets(){
@@ -621,7 +634,6 @@
   function populateSheetsCache(wb){
     latestSheets = {};
     wb.SheetNames.forEach(function(name){
-      if(name === CONFIG_SHEET_NAME) return;
       var rows = sheetToRows(wb.Sheets[name]).filter(function(r){
         return r.some(function(c){ return String(c).trim() !== ""; });
       });
@@ -629,6 +641,12 @@
       var headers = rows[0].map(function(h){ return String(h||"").trim() || "—"; });
       latestSheets[name] = {headers: headers, rows: rows.slice(1)};
     });
+  }
+  // Hook: injeta no cache de listas uma aba "virtual" que não existe na
+  // planilha (é calculada aqui no navegador a partir de Atendimentos +
+  // Participantes Ativ. Coletiva). Chamado logo após populateSheetsCache().
+  function registrarListaCalculada(nomeBase, listaCalculada){
+    latestSheets[suffixedName(nomeBase)] = listaCalculada;
   }
 
   function renderListCard(name){
@@ -1060,52 +1078,34 @@
 
     fetchAllSheets()
       .then(function(results){
-        if(typeof XLSX === 'undefined'){
-          throw new Error('A biblioteca de leitura de planilhas não carregou (verifique sua conexão).');
-        }
-        var indicadoresRealName = suffixedName(INDICADORES_SHEET_NAME);
-        var indicadoresResult = results.filter(function(r){ return r.name === indicadoresRealName; })[0];
-        if(!indicadoresResult || !indicadoresResult.ok){
-          throw new Error('Não foi possível ler a aba "' + indicadoresRealName + '" (verifique se ela ainda existe e se a planilha está com acesso "qualquer pessoa com o link pode visualizar").');
+        var faltando = results.filter(function(r){ return !r.ok; });
+        if(faltando.length){
+          throw new Error('Não foi possível ler a(s) aba(s) "' + faltando.map(function(r){return r.name;}).join('", "')
+            + '" (verifique se elas ainda existem com esse nome e se a planilha está com acesso "qualquer pessoa com o link pode visualizar").');
         }
 
         var wb = {SheetNames:[], Sheets:{}};
         results.forEach(function(r){
-          if(!r.ok) return;
           var parsedRows = parseCsv(r.csvText);
           if(!parsedRows.length) return;
           wb.Sheets[r.name] = parsedRows;
           wb.SheetNames.push(r.name);
         });
 
-        var indicadoresSheetName = findIndicadoresSheetName(wb);
-        var extracted = indicadoresSheetName
-          ? extractIndicadores(sheetToRows(wb.Sheets[indicadoresSheetName]))
-          : {error:'noSheet'};
-        populateSheetsCache(wb, indicadoresSheetName);
+        // Período: janela móvel calculada aqui mesmo (não existe aba Config
+        // nem período na aba Indicadores M1 e M2 — ver calcularJanelaPeriodo()).
+        var janela = calcularJanelaPeriodo();
+        var extracted = calcularIndicadoresDoPeriodo(wb, janela);
 
-        var periodo = null;
-        if(wb.Sheets[CONFIG_SHEET_NAME]){
-          var configRows = wb.Sheets[CONFIG_SHEET_NAME];
-          // Config!B1 = fim (mês de referência), Config!B2 = início (calculado)
-          var fimTxt = configRows[0] ? String(configRows[0][1]||"").trim() : "";
-          var inicioTxt = configRows[1] ? String(configRows[1][1]||"").trim() : "";
-          if(fimTxt && inicioTxt) periodo = {inicio: inicioTxt, fim: fimTxt};
-        }
+        populateSheetsCache(wb);
+        registrarListaCalculada("Pessoas atendidas", extracted.pessoasAtendidas);
+
+        var periodo = {inicio: fmtBRDate(janela.inicio), fim: fmtBRDate(janela.fim)};
 
         var now = Date.now();
         var history = loadHistoryArray();
         var lastForEquipe = history.filter(function(h){ return !h.error && h.equipe === extracted.equipe; })
                                     .sort(function(a,b){ return b.timestamp-a.timestamp; })[0];
-
-        if(extracted.error){
-          var errRecord = {id:'e'+now, timestamp:now, error:extracted.error, equipe:'Planilha'};
-          currentRecordId = errRecord.id;
-          fetchStatusEl.textContent = 'Não encontramos os indicadores nesta planilha.';
-          fetchStatusEl.className = 'fetch-status err';
-          renderDashboard(errRecord);
-          return;
-        }
 
         if(lastForEquipe && sameData(lastForEquipe.data, extracted.data)){
           currentRecordId = lastForEquipe.id;
@@ -1126,7 +1126,7 @@
         arr.push(record);
         saveHistoryArray(arr).then(function(){
           currentRecordId = record.id;
-          fetchStatusEl.textContent = 'Planilha lida com sucesso.';
+          fetchStatusEl.textContent = 'Planilha lida e calculada com sucesso.';
           renderDashboard(record);
         });
       })
