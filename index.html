@@ -136,6 +136,8 @@
   .gauge-card h3{font-size:15px;font-weight:500;margin:0 0 2px;}
   .gauge-card .formula{font-size:12px;color:var(--ink-soft);margin:0 0 6px;}
   .gauge-svg{width:100%;max-width:230px;height:auto;}
+  .gauge-needle{transform:rotate(var(--target-angle,0deg));animation:gaugeSweep 900ms cubic-bezier(.2,.8,.2,1) both;}
+  @keyframes gaugeSweep{from{transform:rotate(0deg);}to{transform:rotate(var(--target-angle,0deg));}}
   .gauge-value{font-size:36px;font-weight:600;margin:2px 0 4px;}
   .gauge-value .unit{font-size:19px;font-weight:500;color:var(--ink-soft);}
   .gauge-note{font-size:12px;color:var(--ink-soft);margin-top:6px;}
@@ -1038,24 +1040,23 @@
       var a2 = 180 - (b.to/domainMax)*180;
       return '<path d="'+arcPath(cx,cy,r,a1,a2)+'" stroke="'+b.color+'" stroke-width="'+thick+'" fill="none" stroke-linecap="round"/>';
     }).join('');
-    var frac = Math.max(0, Math.min(1, (value===null?0:value)/domainMax));
+    var frac = (value===null || value===undefined || isNaN(value)) ? 0 : Math.max(0, Math.min(1, value/domainMax));
     var targetAngle = 180 - frac*180;
+    var needleRotation = 180 - targetAngle; // graus a girar o ponteiro (que nasce apontando p/ 0)
     var needleLen = r - thick/2 - 6;
     var tipBase = polar(cx,cy,needleLen,180);
-    var needleSvg = '<g id="'+gaugeId+'" style="transform-origin:'+cx+'px '+cy+'px;transform:rotate(0deg);transition:transform 900ms cubic-bezier(.2,.8,.2,1);" data-target="'+(180-targetAngle)+'">'
+    // Ponteiro é desenhado sempre apontando para "0" (esquerda) e a rotação até
+    // o valor real é feita via CSS puro (animation + custom property), em vez
+    // de depender de JS aplicar o transform depois — isso evita que o ponteiro
+    // fique "zerado" caso a atualização via JS não rode a tempo/corretamente.
+    var needleSvg = '<g id="'+gaugeId+'" class="gauge-needle" style="transform-origin:'+cx+'px '+cy+'px;--target-angle:'+needleRotation+'deg;">'
       + '<line x1="'+cx+'" y1="'+cy+'" x2="'+tipBase.x+'" y2="'+tipBase.y+'" stroke="#13241F" stroke-width="3" stroke-linecap="round"/>'
       + '<circle cx="'+cx+'" cy="'+cy+'" r="5.5" fill="#13241F"/></g>';
     return '<svg class="gauge-svg" viewBox="0 0 230 148">'+bandsSvg+needleSvg+'</svg>';
   }
   function animateGauges(){
-    document.querySelectorAll('[data-target]').forEach(function(el){
-      var target = el.getAttribute('data-target');
-      requestAnimationFrame(function(){
-        requestAnimationFrame(function(){
-          el.style.transform = 'rotate('+target+'deg)';
-        });
-      });
-    });
+    // Mantida como no-op por compatibilidade com as chamadas existentes em
+    // renderDashboard(); a animação agora é 100% CSS (ver .gauge-needle).
   }
 
   var CLASS_BANDS_M1 = [
