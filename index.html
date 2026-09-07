@@ -148,6 +148,13 @@
     color:#fff;white-space:nowrap;
   }
 
+  .gauge-legend{
+    margin-top:10px;display:flex;flex-wrap:wrap;justify-content:center;
+    gap:4px 14px;font-size:11px;color:var(--ink-soft);
+  }
+  .gauge-legend span{display:inline-flex;align-items:center;gap:5px;white-space:nowrap;}
+  .gauge-legend i{width:8px;height:8px;border-radius:50%;flex:0 0 auto;display:inline-block;}
+
   /* ---------- Meta do quadrimestre ---------- */
   .meta-quad-row{display:flex;flex-direction:column;gap:16px;margin-bottom:20px;}
   .meta-quad-wrap{
@@ -1132,7 +1139,25 @@
     {from:7.5,to:10,color:arcHex("Ótimo")}
   ];
 
-  function gaugeCardHTML(title, formula, value, domainMax, bands, gaugeId, valueHtml, classLabel, note){
+  function gaugeLegendHTML(items){
+    return '<div class="gauge-legend">' + items.map(function(it){
+      return '<span><i style="background:'+it.color+'"></i>'+it.label+' '+it.cond+'</span>';
+    }).join('') + '</div>';
+  }
+  var LEGEND_M1 = [
+    {label:'Ótimo',      cond:'&gt; 3',           color:arcHex('Ótimo')},
+    {label:'Bom',        cond:'&gt; 2 e ≤ 3',     color:arcHex('Bom')},
+    {label:'Suficiente', cond:'&gt; 1 e ≤ 2',     color:arcHex('Suficiente')},
+    {label:'Regular',    cond:'≤ 1',              color:arcHex('Regular')}
+  ];
+  var LEGEND_M2 = [
+    {label:'Ótimo',      cond:'&gt; 5%',              color:arcHex('Ótimo')},
+    {label:'Bom',        cond:'&gt; 2,5% e ≤ 5%',     color:arcHex('Bom')},
+    {label:'Suficiente', cond:'&gt; 1% e ≤ 2,5%',     color:arcHex('Suficiente')},
+    {label:'Regular',    cond:'≤ 1%',                 color:arcHex('Regular')}
+  ];
+
+  function gaugeCardHTML(title, formula, value, domainMax, bands, gaugeId, valueHtml, classLabel, note, legend){
     return '<div class="card gauge-card">'
       + '<h3>'+title+'</h3>'
       + '<p class="formula">'+formula+'</p>'
@@ -1140,6 +1165,7 @@
       + '<div class="gauge-value">'+valueHtml+'</div>'
       + '<span class="pill" style="background:'+pillHex(classLabel)+'">'+(classLabel||'—')+'</span>'
       + (note ? '<p class="gauge-note">'+note+'</p>' : '')
+      + (legend ? gaugeLegendHTML(legend) : '')
       + '</div>';
   }
 
@@ -1324,11 +1350,11 @@
         gaugeCardHTML('M1 — Média de atendimentos por pessoa',
           'Atendimentos individuais + coletivos ÷ pessoas atendidas',
           d.m1, 4, CLASS_BANDS_M1, 'needle-geral-m1', fmtDec(d.m1,2), d.classificacaoM1,
-          fmtInt(d.numeradorM1)+' atendimentos ÷ '+fmtInt(d.denominadorM1)+' pessoas')
+          fmtInt(d.numeradorM1)+' atendimentos ÷ '+fmtInt(d.denominadorM1)+' pessoas', LEGEND_M1)
       + gaugeCardHTML('M2 — Ações compartilhadas',
           'Ações compartilhadas ÷ ações realizadas × 100',
           d.m2, 8, CLASS_BANDS_M2, 'needle-geral-m2', fmtDec(d.m2,2)+'<span class="unit">%</span>', d.classificacaoM2,
-          fmtInt(d.numeradorM2)+' compartilhadas ÷ '+fmtInt(d.denominadorM2)+' ações')
+          fmtInt(d.numeradorM2)+' compartilhadas ÷ '+fmtInt(d.denominadorM2)+' ações', LEGEND_M2)
       + gaugeCardHTML('Desempenho quadrimestral',
           'Nota final = (Pontos M1 × 6 + Pontos M2 × 4) ÷ 10',
           d.notaFinal, 10, CLASS_BANDS_NOTA, 'needle-geral-nota', fmtDec(d.notaFinal,2), d.desempenho,
@@ -1348,7 +1374,7 @@
       gaugeCardHTML('M1 — Média de atendimentos por pessoa',
         'Atendimentos individuais + coletivos ÷ pessoas atendidas',
         d.m1, 4, CLASS_BANDS_M1, 'needle-m1tab-m1', fmtDec(d.m1,2), d.classificacaoM1,
-        fmtInt(d.numeradorM1)+' atendimentos ÷ '+fmtInt(d.denominadorM1)+' pessoas');
+        fmtInt(d.numeradorM1)+' atendimentos ÷ '+fmtInt(d.denominadorM1)+' pessoas', LEGEND_M1);
     document.getElementById('compRowM1').innerHTML =
         '<div class="card comp-card"><h4>Numerador do M1</h4>'+numM1Bar+'</div>'
       + '<div class="card comp-card"><h4>Denominador do M1</h4>'+denM1Bar+'</div>';
@@ -1359,7 +1385,7 @@
       gaugeCardHTML('M2 — Ações compartilhadas',
         'Ações compartilhadas ÷ ações realizadas × 100',
         d.m2, 8, CLASS_BANDS_M2, 'needle-m2tab-m2', fmtDec(d.m2,2)+'<span class="unit">%</span>', d.classificacaoM2,
-        fmtInt(d.numeradorM2)+' compartilhadas ÷ '+fmtInt(d.denominadorM2)+' ações');
+        fmtInt(d.numeradorM2)+' compartilhadas ÷ '+fmtInt(d.denominadorM2)+' ações', LEGEND_M2);
     document.getElementById('compRowM2').innerHTML =
         '<div class="card comp-card"><h4>Numerador do M2</h4>'+numM2Bar+'</div>'
       + '<div class="card comp-card"><h4>Denominador do M2</h4>'+denM2Bar+'</div>';
