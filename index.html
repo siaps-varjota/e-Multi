@@ -117,13 +117,6 @@
     padding:22px 24px;
   }
   .gauge-row{display:flex;gap:20px;flex-wrap:wrap;margin-bottom:20px;}
-  .ref-month-row{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:18px;}
-  .ref-month-row label{font-size:12.5px;color:var(--ink-soft);font-weight:600;}
-  .ref-month-row select{
-    padding:8px 12px;border:1px solid var(--line);border-radius:6px;
-    font-family:'Inter',sans-serif;font-size:13px;background:var(--surface);color:var(--ink);
-  }
-  .ref-month-row select:focus{outline:none;border-color:var(--header-bg);}
   .gauge-card{flex:1;min-width:280px;display:flex;flex-direction:column;align-items:center;text-align:center;}
   .gauge-card h3{font-size:15px;font-weight:500;margin:0 0 2px;}
   .gauge-card .formula{font-size:12px;color:var(--ink-soft);margin:0 0 6px;}
@@ -271,11 +264,6 @@
   </div>
 
   <div id="tabGeral" class="tab-panel active">
-    <div class="ref-month-row">
-      <label for="mesReferenciaSelect">Mês de referência</label>
-      <select id="mesReferenciaSelect"></select>
-      <span class="footnote" id="janelaLabel" style="margin:0;"></span>
-    </div>
     <div class="gauge-row" id="gaugeRow"></div>
     <p class="section-title">Composição do cálculo</p>
     <div class="comp-row" id="compRow"></div>
@@ -391,17 +379,15 @@
     // de BASE_SHEET_NAMES).
     return BASE_SHEET_NAMES.slice();
   }
-  function calcularJanelaPeriodo(ano, mes){
-    // Janela de JANELA_MESES meses "de calendário" terminando no mês de
-    // referência (ex.: referência = Maio → janela = Fevereiro a Maio).
-    // Sem argumentos, usa o mês/ano atuais como referência (comportamento
-    // padrão ao abrir o painel ou trocar de equipe).
-    var hoje = new Date();
-    var refAno = (ano!=null) ? ano : hoje.getFullYear();
-    var refMes = (mes!=null) ? mes : hoje.getMonth();
-    var fim = new Date(refAno, refMes+1, 0, 23,59,59,999); // último dia do mês de referência
-    var inicio = new Date(refAno, refMes-(JANELA_MESES-1), 1, 0,0,0,0); // dia 1 do mês inicial da janela
-    return {inicio: inicio, fim: fim, refAno: refAno, refMes: refMes};
+  function calcularJanelaPeriodo(){
+    // "Hook" do período: janela móvel terminando hoje. Se um dia você
+    // quiser voltar a ler o período de uma célula da planilha, é só trocar
+    // o corpo desta função — o resto do painel não muda.
+    var fim = new Date();
+    fim.setHours(23,59,59,999);
+    var inicio = new Date(fim.getFullYear(), fim.getMonth()-JANELA_MESES, fim.getDate());
+    inicio.setHours(0,0,0,0);
+    return {inicio: inicio, fim: fim};
   }
   function sheetCsvUrl(sheetName){
     return "https://docs.google.com/spreadsheets/d/" + SPREADSHEET_ID
@@ -429,14 +415,6 @@
 
   var STORAGE_KEY = "uploads";
   var currentRecordId = null;
-  // Workbook bruto (já filtrado pela equipe atual, mas com TODO o
-  // histórico, sem filtro de data) — guardado pra poder recalcular M1/M2
-  // na hora quando o usuário troca o "Mês de referência", sem precisar
-  // buscar a planilha de novo.
-  var currentRawWorkbook = null;
-  var refAnoSelecionado = null;
-  var refMesSelecionado = null;
-  var ultimoRecordReal = null; // último record de fato buscado (id/timestamp reais)
   var STORAGE_AVAILABLE = !!(window.storage && typeof window.storage.get === 'function'
     && typeof window.storage.set === 'function');
   var memoryHistory = [];
@@ -497,38 +475,6 @@
       return normalizeText(r[idx]).indexOf(keyword) !== -1;
     });
     return [header].concat(linhas);
-  }
-
-  // ---------- Meses de referência ----------
-  var MESES_ABREV = ['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];
-  var MESES_LONGO = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-  function mesLabelCurto(ano,mes){ return MESES_ABREV[mes]+'/'+String(ano).slice(2); }
-  function mesLabelLongo(ano,mes){ return MESES_LONGO[mes]+' de '+ano; }
-
-  // Varre as abas brutas (já filtradas pela equipe atual) em busca de todas
-  // as combinações ano/mês presentes nas colunas de data, pra popular o
-  // seletor "Mês de referência". Sempre inclui o mês atual também, mesmo
-  // sem dados ainda.
-  function listarMesesDisponiveis(wb){
-    var set = {};
-    function addFromSheet(baseName, colName){
-      var rows = wb.Sheets[suffixedName(baseName)];
-      if(!rows || !rows.length) return;
-      var idx = colIndex(rows[0], colName);
-      if(idx < 0) return;
-      for(var i=1;i<rows.length;i++){
-        var d = parseBRDate(rows[i][idx]);
-        if(d) set[d.getFullYear()+'-'+d.getMonth()] = {ano:d.getFullYear(), mes:d.getMonth()};
-      }
-    }
-    addFromSheet("Atendimentos", "data_hora");
-    addFromSheet("Participantes Ativ. Coletiva", "data");
-    addFromSheet("Resumo Atividade Coletiva", "data");
-    addFromSheet("Resumo Reuniões", "data");
-    var hoje = new Date();
-    set[hoje.getFullYear()+'-'+hoje.getMonth()] = {ano:hoje.getFullYear(), mes:hoje.getMonth()};
-    return Object.keys(set).map(function(k){ return set[k]; })
-      .sort(function(a,b){ return (a.ano*12+a.mes) - (b.ano*12+b.mes); });
   }
 
   // Parser de CSV manual (RFC4180: respeita campos entre aspas, vírgulas e
@@ -1219,24 +1165,13 @@
           wb.SheetNames.push(key);
         });
 
-        // Guarda o workbook bruto (com todo o histórico, sem filtro de
-        // data) pra poder recalcular por "mês de referência" depois, sem
-        // precisar buscar a planilha de novo.
-        currentRawWorkbook = wb;
-
-        // Mês de referência: por padrão, o mês atual — o painel calcula
-        // a janela de JANELA_MESES meses terminando nesse mês (ver
-        // calcularJanelaPeriodo). O usuário pode trocar no seletor da
-        // Visão geral, sem precisar reler a planilha.
-        var hoje = new Date();
-        refAnoSelecionado = hoje.getFullYear();
-        refMesSelecionado = hoje.getMonth();
-        var janela = calcularJanelaPeriodo(refAnoSelecionado, refMesSelecionado);
+        // Período: janela móvel calculada aqui mesmo (não existe aba Config
+        // nem período na aba Indicadores M1 e M2 — ver calcularJanelaPeriodo()).
+        var janela = calcularJanelaPeriodo();
         var extracted = calcularIndicadoresDoPeriodo(wb, janela);
 
         populateSheetsCache(wb);
         registrarListaCalculada("Pessoas atendidas", extracted.pessoasAtendidas);
-        renderMesReferenciaSelect(wb, refAnoSelecionado, refMesSelecionado);
 
         var periodo = {inicio: fmtBRDate(janela.inicio), fim: fmtBRDate(janela.fim)};
 
@@ -1247,7 +1182,6 @@
 
         if(lastForEquipe && sameData(lastForEquipe.data, extracted.data)){
           currentRecordId = lastForEquipe.id;
-          ultimoRecordReal = lastForEquipe;
           fetchStatusEl.textContent = 'Dados sem alterações desde a última leitura.';
           renderDashboard(lastForEquipe);
           return;
@@ -1265,7 +1199,6 @@
         arr.push(record);
         saveHistoryArray(arr).then(function(){
           currentRecordId = record.id;
-          ultimoRecordReal = record;
           fetchStatusEl.textContent = 'Planilha lida e calculada com sucesso.';
           renderDashboard(record);
         });
