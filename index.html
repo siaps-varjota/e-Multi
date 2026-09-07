@@ -528,14 +528,20 @@
       aplicarMesReferencia(false);
     };
   }
-  // Combina os indicadores de vários meses (calculados individualmente,
-  // um período por mês) fazendo a MÉDIA de M1 e M2 — é assim que o
-  // quadrimestre vira "a média dos meses do quadrimestre". As contagens
-  // brutas (atendimentos, participações etc.) aparecem somadas, só como
-  // contexto na composição do cálculo.
-  function mediaDeMeses(resultadosMensais){
+  // Combina os indicadores de vários meses fazendo a MÉDIA de M1 e M2 —
+  // é assim que o quadrimestre vira "a média dos meses do quadrimestre".
+  // IMPORTANTE: o M1/M2 de CADA mês que entra nessa média já é o valor
+  // "oficial" daquele mês/competência, ou seja, calculado com a janela
+  // móvel de JANELA_MESES meses terminando naquele mês (ex.: M1 de maio =
+  // fev+mar+abr+maio) — é por isso que a função recebe DOIS conjuntos de
+  // resultados: `resultadosJanela` (M1/M2 de cada mês já com a janela
+  // móvel, usados para a média) e `resultadosMensais` (dados BRUTOS só
+  // daquele mês isolado, sem janela, usados apenas pra somar contagens de
+  // contexto — atendimentos, participações etc. — e montar a lista de
+  // "Pessoas atendidas" sem contar o mesmo atendimento mais de uma vez).
+  function mediaDeMeses(resultadosMensais, resultadosJanela){
     function media(campo){
-      var vals = resultadosMensais.map(function(r){ return r.data[campo]; }).filter(function(v){ return v!=null; });
+      var vals = resultadosJanela.map(function(r){ return r.data[campo]; }).filter(function(v){ return v!=null; });
       if(!vals.length) return null;
       return vals.reduce(function(a,b){ return a+b; }, 0) / vals.length;
     }
@@ -1374,11 +1380,21 @@
       periodo = {inicio: fmtBRDate(janelaMes.inicio), fim: fmtBRDate(janelaMes.fim)};
     } else {
       // Nenhum mês escolhido: média dos 4 meses do quadrimestre selecionado.
+      // O M1/M2 de CADA mês usado na média já é o valor com a janela móvel
+      // de JANELA_MESES meses terminando naquele mês (mesma regra oficial
+      // usada na seleção de mês individual e no gráfico de tendência) —
+      // por isso calculamos cada mês duas vezes: uma com a janela (pra
+      // entrar na média de M1/M2) e outra isolada, só o mês em si (pra
+      // somar contagens de contexto e montar "Pessoas atendidas" sem
+      // sobrepor dados de meses vizinhos).
       var meses = mesesDoQuadrimestre(quadSelecionado.ano, quadSelecionado.qIndex);
       var resultadosMensais = meses.map(function(m){
         return calcularIndicadoresDoPeriodo(latestWb, periodoMesUnico(m));
       });
-      extracted = mediaDeMeses(resultadosMensais);
+      var resultadosJanela = meses.map(function(m){
+        return calcularIndicadoresDoPeriodo(latestWb, calcularJanelaPeriodo(m));
+      });
+      extracted = mediaDeMeses(resultadosMensais, resultadosJanela);
       periodo = {
         inicio: fmtBRDate(periodoMesUnico(meses[0]).inicio),
         fim: fmtBRDate(periodoMesUnico(meses[3]).fim)
