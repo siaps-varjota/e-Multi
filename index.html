@@ -445,6 +445,13 @@
     var s = d.toLocaleDateString('pt-BR', {month:'long', year:'numeric'});
     return s.charAt(0).toUpperCase() + s.slice(1);
   }
+  // refMonthDate é null quando o usuário está vendo a MÉDIA do quadrimestre
+  // (nenhum mês específico selecionado). monthOptionLabel() não aceita null,
+  // então usamos este helper nos lugares que precisam de um rótulo mesmo
+  // quando não há mês de referência definido.
+  function refMonthLabel(){
+    return refMonthDate ? monthOptionLabel(refMonthDate) : 'Média do quadrimestre';
+  }
   function monthShortLabel(d){
     var s = d.toLocaleDateString('pt-BR', {month:'short'}).replace('.', '');
     return s.charAt(0).toUpperCase() + s.slice(1) + '/' + String(d.getFullYear()).slice(2);
@@ -1216,7 +1223,7 @@
     // página foi atualizada.
     var trend = '';
     trend += '<div class="card trend-card"><h4>M1 mês a mês</h4>'
-      + '<p class="cur">Mês de referência ('+monthOptionLabel(refMonthDate)+'): '+fmtDec(d.m1,2)+'</p>'
+      + '<p class="cur">Mês de referência ('+refMonthLabel()+'): '+fmtDec(d.m1,2)+'</p>'
       + sparkline(serieTendencia.map(function(p){ return {y:p.m1, label:monthShortLabel(p.mes)}; }).filter(function(p){return p.y!=null;}), '#153F35')
       + '<p class="footnote">Cada ponto já é a janela de '+JANELA_MESES+' meses terminando naquele mês.</p>'
       + '</div>';
