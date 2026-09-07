@@ -57,7 +57,15 @@
   .topbar-right{display:flex;align-items:center;gap:18px;flex-wrap:wrap;}
   .topbar-meta{text-align:right;}
   .topbar-meta .eq{font-size:15px;font-weight:600;}
+  .topbar-meta .periodo{font-size:12px;color:var(--header-soft);margin-top:2px;}
   .topbar-meta .dt{font-size:12px;color:var(--header-soft);margin-top:2px;}
+  .equipe-switcher{display:flex;gap:8px;padding:14px 32px 0;}
+  .equipe-btn{
+    padding:8px 16px;border-radius:999px;border:1px solid var(--line);
+    background:var(--surface);color:var(--ink-soft);font-family:'Inter',sans-serif;
+    font-size:13px;font-weight:600;cursor:pointer;
+  }
+  .equipe-btn.active{background:var(--header-bg);color:#fff;border-color:var(--header-bg);}
   .refresh-pill{
     display:flex;align-items:center;gap:8px;
     background:rgba(238,243,234,.08);border:1px solid rgba(238,243,234,.35);
@@ -217,6 +225,7 @@
   <div class="topbar-right">
     <div class="topbar-meta">
       <div class="eq" id="topEquipe">—</div>
+      <div class="periodo" id="topPeriodo"></div>
       <div class="dt" id="topUpdated">Carregando…</div>
     </div>
     <button class="refresh-pill" id="refreshBtn">
@@ -225,6 +234,8 @@
     </button>
   </div>
 </header>
+
+<div class="equipe-switcher" id="equipeSwitcher"></div>
 
 <nav class="tabbar">
   <button class="tab active" data-tab="geral">Visão geral</button>
@@ -301,7 +312,8 @@
   // suporte a CORS de verdade), que funciona para qualquer aba por nome.
   var SPREADSHEET_ID = "1ujHEI_pERAcKmxQRuF9AmgU0bN22w0A9nnpakCVjY18";
   var INDICADORES_SHEET_NAME = "Indicadores M1 e M2";
-  var REQUIRED_SHEET_NAMES = [
+  var CONFIG_SHEET_NAME = "Config";
+  var BASE_SHEET_NAMES = [
     INDICADORES_SHEET_NAME,
     "Atendimentos",
     "Participantes Ativ. Coletiva",
@@ -309,12 +321,31 @@
     "Resumo Reuniões",
     "Resumo Atividade Coletiva"
   ];
+  var EQUIPES = [
+    {key:"centro", label:"EMULTI Centro", suffix:"Centro"},
+    {key:"croata", label:"EMULTI Croatá", suffix:"Croatá"}
+  ];
+  var currentEquipe = EQUIPES[0];
+
+  function suffixedName(baseName){
+    return baseName + " — " + currentEquipe.suffix;
+  }
+  function displayListName(name){
+    // remove o sufixo " — Centro"/" — Croatá" só pra exibição (o título da
+    // equipe já aparece no topo da página).
+    return name.replace(/ — .+$/, '');
+  }
+  function requiredSheetNames(){
+    // Nomes reais das abas no Sheets para a equipe atual, mais a aba
+    // "Config" (compartilhada, sem sufixo, com o período de referência).
+    return BASE_SHEET_NAMES.map(suffixedName).concat([CONFIG_SHEET_NAME]);
+  }
   function sheetCsvUrl(sheetName){
     return "https://docs.google.com/spreadsheets/d/" + SPREADSHEET_ID
       + "/gviz/tq?tqx=out:csv&sheet=" + encodeURIComponent(sheetName);
   }
   function fetchAllSheets(){
-    return Promise.all(REQUIRED_SHEET_NAMES.map(function(name){
+    return Promise.all(requiredSheetNames().map(function(name){
       return fetch(sheetCsvUrl(name), {cache:'no-store'})
         .then(function(res){
           if(!res.ok) throw new Error('HTTP ' + res.status);
@@ -358,8 +389,8 @@
   // ---------- Listas complementares ----------
   // Vêm todas do MESMO arquivo (a versão .xlsx da planilha publicada traz
   // todas as abas). Basta bater com o nome exato da aba no Google Sheets.
-  var M1_LIST_NAMES = ["Atendimentos", "Participantes Ativ. Coletiva", "Pessoas atendidas"];
-  var M2_LIST_NAMES = ["Atendimentos", "Resumo Reuniões", "Resumo Atividade Coletiva"];
+  function m1ListNames(){ return ["Atendimentos", "Participantes Ativ. Coletiva", "Pessoas atendidas"].map(suffixedName); }
+  function m2ListNames(){ return ["Atendimentos", "Resumo Reuniões", "Resumo Atividade Coletiva"].map(suffixedName); }
   var latestSheets = {}; // nome da aba -> {headers, rows} | {error}
 
   var STORAGE_KEY = "uploads";
@@ -393,7 +424,8 @@
 
   // ---------- Parsing ----------
   function findIndicadoresSheetName(wb){
-    if(wb.SheetNames.indexOf("Indicadores M1 e M2") !== -1) return "Indicadores M1 e M2";
+    var expected = suffixedName(INDICADORES_SHEET_NAME);
+    if(wb.SheetNames.indexOf(expected) !== -1) return expected;
     for(var i=0;i<wb.SheetNames.length;i++){
       var name = wb.SheetNames[i];
       var ws = wb.Sheets[name];
@@ -527,7 +559,7 @@
         + '<input class="list-search" type="text" placeholder="Filtrar nesta lista…" data-filter-key="'+escapeHtml(name)+'">'
         + '<div class="table-wrap"><table class="data-table"><thead>'+theadHtml+'</thead><tbody>'+bodyHtml+'</tbody></table></div>';
     }
-    return '<div class="card list-card" data-list-card="'+escapeHtml(name)+'"><h4>'+escapeHtml(name)+'</h4>'+body+'</div>';
+    return '<div class="card list-card" data-list-card="'+escapeHtml(name)+'"><h4>'+escapeHtml(displayListName(name))+'</h4>'+body+'</div>';
   }
 
   function renderListsSection(containerId, names){
@@ -719,6 +751,9 @@
   function renderDashboard(record){
     document.getElementById('statusState').style.display = 'none';
     document.getElementById('topEquipe').textContent = record.equipe || '—';
+    document.getElementById('topPeriodo').textContent = record.periodo
+      ? 'Período: ' + record.periodo.inicio + ' a ' + record.periodo.fim
+      : '';
     document.getElementById('topUpdated').textContent = record.error
       ? 'Falha na última leitura'
       : 'Atualizado em ' + fmtDate(record.timestamp);
@@ -780,7 +815,7 @@
     document.getElementById('compRowM1').innerHTML =
         '<div class="card comp-card"><h4>Numerador do M1</h4>'+numM1Bar+'</div>'
       + '<div class="card comp-card"><h4>Denominador do M1</h4>'+denM1Bar+'</div>';
-    renderListsSection('listsM1', M1_LIST_NAMES);
+    renderListsSection('listsM1', m1ListNames());
 
     // ---- Aba M2: gauge + composição do M2 + listas ----
     document.getElementById('gaugeRowM2').innerHTML =
@@ -791,7 +826,7 @@
     document.getElementById('compRowM2').innerHTML =
         '<div class="card comp-card"><h4>Numerador do M2</h4>'+numM2Bar+'</div>'
       + '<div class="card comp-card"><h4>Denominador do M2</h4>'+denM2Bar+'</div>';
-    renderListsSection('listsM2', M2_LIST_NAMES);
+    renderListsSection('listsM2', m2ListNames());
 
     var history = loadHistoryArray();
     var sameEquipe = history.filter(function(h){ return h.equipe === record.equipe && !h.error; })
@@ -928,9 +963,10 @@
         if(typeof XLSX === 'undefined'){
           throw new Error('A biblioteca de leitura de planilhas não carregou (verifique sua conexão).');
         }
-        var indicadoresResult = results.filter(function(r){ return r.name === INDICADORES_SHEET_NAME; })[0];
+        var indicadoresRealName = suffixedName(INDICADORES_SHEET_NAME);
+        var indicadoresResult = results.filter(function(r){ return r.name === indicadoresRealName; })[0];
         if(!indicadoresResult || !indicadoresResult.ok){
-          throw new Error('Não foi possível ler a aba "' + INDICADORES_SHEET_NAME + '" (verifique se ela ainda existe e se a planilha está com acesso "qualquer pessoa com o link pode visualizar").');
+          throw new Error('Não foi possível ler a aba "' + indicadoresRealName + '" (verifique se ela ainda existe e se a planilha está com acesso "qualquer pessoa com o link pode visualizar").');
         }
 
         var wb = {SheetNames:[], Sheets:{}};
@@ -947,6 +983,15 @@
           ? extractIndicadores(sheetToRows(wb.Sheets[indicadoresSheetName]))
           : {error:'noSheet'};
         populateSheetsCache(wb, indicadoresSheetName);
+
+        var periodo = null;
+        if(wb.Sheets[CONFIG_SHEET_NAME]){
+          var configRows = wb.Sheets[CONFIG_SHEET_NAME];
+          // Config!B1 = fim (mês de referência), Config!B2 = início (calculado)
+          var fimTxt = configRows[0] ? String(configRows[0][1]||"").trim() : "";
+          var inicioTxt = configRows[1] ? String(configRows[1][1]||"").trim() : "";
+          if(fimTxt && inicioTxt) periodo = {inicio: inicioTxt, fim: fimTxt};
+        }
 
         var now = Date.now();
         var history = loadHistoryArray();
@@ -974,7 +1019,8 @@
           timestamp: now,
           equipe: extracted.equipe,
           data: extracted.data,
-          notes: extracted.notes
+          notes: extracted.notes,
+          periodo: periodo
         };
         var arr = loadHistoryArray();
         arr.push(record);
@@ -1006,6 +1052,24 @@
   }
 
   refreshBtn.addEventListener('click', fetchAndLoad);
+
+  function renderEquipeSwitcher(){
+    var el = document.getElementById('equipeSwitcher');
+    el.innerHTML = EQUIPES.map(function(eq){
+      return '<button class="equipe-btn'+(eq.key===currentEquipe.key?' active':'')+'" data-equipe="'+eq.key+'">'+escapeHtml(eq.label)+'</button>';
+    }).join('');
+    el.querySelectorAll('.equipe-btn').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        var key = btn.getAttribute('data-equipe');
+        if(key === currentEquipe.key) return;
+        currentEquipe = EQUIPES.filter(function(eq){ return eq.key === key; })[0];
+        renderEquipeSwitcher();
+        document.getElementById('statusState').style.display = '';
+        fetchAndLoad();
+      });
+    });
+  }
+  renderEquipeSwitcher();
 
   // ---------- Init ----------
   refreshHistoryFromStorage(function(arr){
