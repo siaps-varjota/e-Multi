@@ -148,6 +148,36 @@
     color:#fff;white-space:nowrap;
   }
 
+  /* ---------- Meta do quadrimestre ---------- */
+  .meta-quad-row{display:flex;flex-direction:column;gap:16px;margin-bottom:20px;}
+  .meta-quad-wrap{
+    background:linear-gradient(180deg,#FBFAFF,var(--surface));
+    border:1px solid #E6E1F5;border-radius:var(--radius);padding:20px 24px;
+  }
+  .meta-quad-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:16px;}
+  .meta-icon{
+    width:30px;height:30px;border-radius:50%;background:#EFEAFB;color:#7C5CBF;
+    display:flex;align-items:center;justify-content:center;flex:0 0 auto;
+  }
+  .meta-icon svg{width:16px;height:16px;}
+  .meta-quad-titles{flex:1 1 auto;min-width:180px;}
+  .meta-quad-titles h3{margin:0;font-size:15.5px;font-weight:600;color:#6E4FB0;}
+  .meta-quad-titles p{margin:2px 0 0;font-size:12.5px;color:var(--ink-soft);}
+  .meta-quad-titles p b{color:var(--ink);font-weight:600;}
+  .pill-preliminar{
+    display:inline-flex;align-items:center;gap:6px;
+    background:#FDF0DE;color:#B4791F;border-radius:999px;
+    padding:5px 12px;font-size:11.5px;font-weight:600;white-space:nowrap;
+  }
+  .pill-preliminar i{width:6px;height:6px;border-radius:50%;background:#E0982D;display:inline-block;}
+  .meta-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:24px;}
+  .meta-card h4{margin:0 0 8px;font-size:13.5px;font-weight:600;}
+  .meta-card-value{font-size:28px;font-weight:700;margin:0 0 8px;}
+  .meta-card-value span{font-size:15px;font-weight:500;}
+  .meta-card-sub{margin:0 0 2px;font-size:12.5px;color:var(--ink-soft);}
+  .meta-card-faltam{margin:10px 0 2px;font-size:13px;font-weight:600;color:var(--pill-regular);}
+  .meta-card-done{margin:10px 0 2px;font-size:13px;font-weight:600;color:var(--arc-bom);}
+
   .section-title{font-size:13px;color:var(--ink-soft);margin:26px 0 10px;font-weight:600;}
   .comp-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px;}
   .comp-card{min-width:0;}
@@ -289,6 +319,7 @@
       <span class="ref-window-label" id="refWindowLabel"></span>
     </div>
     <div class="gauge-row" id="gaugeRow"></div>
+    <div class="meta-quad-row" id="metaQuadRow"></div>
     <p class="section-title">Composição do cálculo</p>
     <div class="comp-row" id="compRow"></div>
   </div>
@@ -1095,6 +1126,90 @@
       + '</div>';
   }
 
+  // ---------- Meta do quadrimestre ----------
+  // Ícone simples de alvo/meta usado no cabeçalho de cada bloco.
+  var METAS_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">'
+    + '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4.3"/><circle cx="12" cy="12" r="1"/></svg>';
+
+  function fmtDecMeta(n){
+    return (Math.round(n*10)/10).toLocaleString('pt-BR', {minimumFractionDigits:1, maximumFractionDigits:1});
+  }
+
+  // Um card de meta (ex.: "Bom" ou "Ótimo"): alvo a bater, ritmo médio
+  // necessário até o fim do quadrimestre e quanto ainda falta.
+  function metaCardHTML(cfg){
+    var subLines =
+        '<p class="meta-card-sub">Média/mês: '+fmtDecMeta(cfg.mediaMes)+'</p>'
+      + '<p class="meta-card-sub">Média/semana: '+fmtDecMeta(cfg.mediaSemana)+'</p>';
+    var faltamHtml;
+    if(cfg.faltam<=0){
+      faltamHtml = '<p class="meta-card-done">Meta já atingida ✓</p>';
+    } else if(cfg.semanasRestantes<=0){
+      faltamHtml = '<p class="meta-card-faltam">Faltam: '+fmtInt(cfg.faltam)+' '+cfg.unidade+' (quadrimestre encerrado)</p>';
+    } else {
+      faltamHtml = '<p class="meta-card-faltam">Faltam: '+fmtInt(cfg.faltam)+' '+cfg.unidade+'</p>'
+        + '<p class="meta-card-sub">Média/semana: '+fmtDecMeta(cfg.mediaSemanaFaltam)+'</p>';
+    }
+    return '<div class="meta-card">'
+      + '<h4 style="color:'+cfg.color+'">'+cfg.label+'</h4>'
+      + '<div class="meta-card-value" style="color:'+cfg.color+'">'+fmtInt(cfg.alvo)+' <span>'+cfg.unidade+'</span></div>'
+      + subLines + faltamHtml
+      + '</div>';
+  }
+
+  // Bloco completo de meta do quadrimestre para um indicador (M1 ou M2):
+  // cabeçalho com a base de cálculo + selo "Preliminar" (enquanto o
+  // quadrimestre ainda não terminou) e os cards de cada faixa-alvo.
+  function metaQuadrimestreHTML(titulo, base, baseLabel, cardsCfg, preliminar){
+    var cardsHtml = cardsCfg.map(metaCardHTML).join('');
+    return '<div class="meta-quad-wrap">'
+      + '<div class="meta-quad-head">'
+      +   '<span class="meta-icon">'+METAS_ICON_SVG+'</span>'
+      +   '<div class="meta-quad-titles"><h3>'+titulo+'</h3><p>de <b>'+fmtInt(base)+'</b> '+baseLabel+'</p></div>'
+      +   (preliminar ? '<span class="pill-preliminar"><i></i>Preliminar</span>' : '')
+      + '</div>'
+      + '<div class="meta-cards">'+cardsHtml+'</div>'
+      + '</div>';
+  }
+
+  // Calcula os cards de meta (Bom/Ótimo) de um indicador para o
+  // quadrimestre selecionado: alvo = limiar × base (denominador), ritmo
+  // médio necessário (mês/semana) pra bater o alvo ao longo do
+  // quadrimestre inteiro, e quanto falta + ritmo pro tempo que resta.
+  function calcularMetasQuadrimestre(numerador, denominador, thresholds, unidade){
+    var meses = mesesDoQuadrimestre(quadSelecionado.ano, quadSelecionado.qIndex);
+    var inicioQuad = new Date(meses[0].getFullYear(), meses[0].getMonth(), 1, 0,0,0,0);
+    var fimQuad = new Date(meses[3].getFullYear(), meses[3].getMonth()+1, 0, 23,59,59,999);
+    var hoje = new Date();
+    var diasQuad = Math.round((fimQuad-inicioQuad)/86400000)+1;
+    var semanasQuad = diasQuad/7;
+    var diasRestantes = Math.max(0, Math.round((fimQuad-hoje)/86400000));
+    var semanasRestantes = diasRestantes/7;
+    var cards = thresholds.map(function(t){
+      var alvo = Math.ceil(t.value*denominador);
+      var faltam = Math.max(0, alvo-(numerador||0));
+      return {
+        label: t.label, color: t.color, unidade: unidade,
+        alvo: alvo,
+        mediaMes: alvo/4,
+        mediaSemana: alvo/semanasQuad,
+        faltam: faltam,
+        semanasRestantes: semanasRestantes,
+        mediaSemanaFaltam: semanasRestantes>0 ? faltam/semanasRestantes : 0
+      };
+    });
+    return {cards: cards, preliminar: hoje < fimQuad};
+  }
+
+  var M1_META_THRESHOLDS = [
+    {value:2,   label:'Bom (M1 ≥ 2,00)',   color:'var(--arc-bom)'},
+    {value:3,   label:'Ótimo (M1 ≥ 3,00)', color:'var(--arc-otimo)'}
+  ];
+  var M2_META_THRESHOLDS = [
+    {value:0.025, label:'Bom (M2 ≥ 2,50%)',  color:'var(--arc-bom)'},
+    {value:0.05,  label:'Ótimo (M2 ≥ 5,00%)', color:'var(--arc-otimo)'}
+  ];
+
   // ---------- Composition bars ----------
   function stackbar(segments, total){
     var t = total || segments.reduce(function(s,x){return s+(x.value||0);},0);
@@ -1201,6 +1316,14 @@
           'Nota final = (Pontos M1 × 6 + Pontos M2 × 4) ÷ 10',
           d.notaFinal, 10, CLASS_BANDS_NOTA, 'needle-geral-nota', fmtDec(d.notaFinal,2), d.desempenho,
           'Pontos M1: '+fmtInt(d.pontosM1)+' · Pontos M2: '+fmtInt(d.pontosM2));
+
+    // ---- Meta do quadrimestre: alvo de atendimentos/ações compartilhadas
+    // pra bater "Bom" e "Ótimo" em M1 e M2, com ritmo médio necessário. ----
+    var metaM1 = calcularMetasQuadrimestre(d.numeradorM1, d.denominadorM1, M1_META_THRESHOLDS, 'atend.');
+    var metaM2 = calcularMetasQuadrimestre(d.numeradorM2, d.denominadorM2, M2_META_THRESHOLDS, 'ações');
+    document.getElementById('metaQuadRow').innerHTML =
+        metaQuadrimestreHTML('Meta do quadrimestre — M1', d.denominadorM1, 'pessoas atendidas', metaM1.cards, metaM1.preliminar)
+      + metaQuadrimestreHTML('Meta do quadrimestre — M2', d.denominadorM2, 'ações realizadas', metaM2.cards, metaM2.preliminar);
 
     // ---- Aba M1: gauge + composição do M1 + listas ----
     document.getElementById('gaugeRowM1').innerHTML =
