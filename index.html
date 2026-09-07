@@ -280,7 +280,9 @@
 
   <div id="tabGeral" class="tab-panel active">
     <div class="ref-month-row">
-      <label for="refMonthSelect">Mês de referência</label>
+      <label for="quadSelect">Quadrimestre</label>
+      <select id="quadSelect"></select>
+      <label for="refMonthSelect">Mês (opcional)</label>
       <select id="refMonthSelect"></select>
       <span class="ref-window-label" id="refWindowLabel"></span>
     </div>
@@ -358,19 +360,47 @@
   // Agora buscamos cada aba separadamente via endpoint gviz/tq (CSV com
   // suporte a CORS de verdade), que funciona para qualquer aba por nome.
   var SPREADSHEET_ID = "1ujHEI_pERAcKmxQRuF9AmgU0bN22w0A9nnpakCVjY18";
-  // Janela móvel: agora amarrada a um "Mês de referência" escolhido pelo
-  // usuário no seletor da Visão geral (não mais "hoje menos N meses"). Ao
-  // escolher, por exemplo, maio, a janela vai de fevereiro a maio (4 meses,
-  // incluindo o mês de referência). Mude só este número se quiser 3, 4 ou 6
-  // meses de janela.
+  // Janela móvel usada SÓ pela aba "Tendência" (mês a mês): cada ponto do
+  // gráfico é o M1/M2 calculado com uma janela de JANELA_MESES meses
+  // terminando naquele mês. Mude só este número se quiser 3, 4 ou 6 meses
+  // de janela.
   var JANELA_MESES = 4;
   // Quantos pontos (meses) mostrar nos gráficos de tendência — cada ponto
   // é o M1/M2 daquele mês, já calculado com sua própria janela de
   // JANELA_MESES meses terminando naquele mês.
   var TREND_MESES = 6;
-  // Mês de referência selecionado (sempre o dia 1 do mês). Começa no mês
-  // atual; muda quando o usuário mexe no seletor #refMonthSelect.
-  var refMonthDate = startOfMonth(new Date());
+  // ---- Filtro principal da Visão geral: Quadrimestre + Mês (opcional) ----
+  // Quadrimestres fixos do ano civil: Q1 Jan–Abr, Q2 Mai–Ago, Q3 Set–Dez.
+  var QUAD_LABELS = ['Jan–Abr (Q1)', 'Mai–Ago (Q2)', 'Set–Dez (Q3)'];
+  // Quadrimestre selecionado (ano + índice 0/1/2). Começa no quadrimestre
+  // que contém o mês atual; muda quando o usuário mexe no #quadSelect.
+  var quadSelecionado = quadrimestreDoMes(new Date());
+  // Mês específico (dentro do quadrimestre) escolhido pelo usuário no
+  // #refMonthSelect. null = vazio por padrão => usa a MÉDIA dos 4 meses
+  // do quadrimestre selecionado. Se o usuário escolher um mês, os
+  // indicadores passam a ser só daquele mês (sem média).
+  var refMonthDate = null;
+  function quadrimestreDoMes(d){
+    return {ano: d.getFullYear(), qIndex: Math.floor(d.getMonth()/4)};
+  }
+  // Os 4 meses (dia 1 de cada) que compõem um quadrimestre.
+  function mesesDoQuadrimestre(ano, qIndex){
+    var meses = [];
+    for(var i=0; i<4; i++){ meses.push(new Date(ano, qIndex*4+i, 1)); }
+    return meses;
+  }
+  // Período de um único mês (do dia 1 ao último dia do mesmo mês).
+  function periodoMesUnico(d){
+    var inicio = new Date(d.getFullYear(), d.getMonth(), 1, 0,0,0,0);
+    var fim = new Date(d.getFullYear(), d.getMonth()+1, 0, 23,59,59,999);
+    return {inicio: inicio, fim: fim};
+  }
+  // Mês "âncora" usado pela aba Tendência: o mês escolhido, se houver, ou
+  // o último mês do quadrimestre selecionado.
+  function anchorMonthDate(){
+    if(refMonthDate) return refMonthDate;
+    return new Date(quadSelecionado.ano, quadSelecionado.qIndex*4+3, 1);
+  }
   // Só as abas de dados BRUTOS — o painel calcula M1/M2 sozinho a partir
   // delas (não lê mais nenhum valor pronto da aba "Indicadores M1 e M2").
   // IMPORTANTE: não existem abas separadas por equipe na planilha — os
@@ -441,22 +471,119 @@
     }
     return pontos;
   }
-  function populateRefMonthSelect(){
-    var sel = document.getElementById('refMonthSelect');
+  // Popula o #quadSelect com quadrimestres do ano atual e dos 2 anteriores
+  // (mais recente primeiro), e o #refMonthSelect com os 4 meses do
+  // quadrimestre atualmente selecionado + uma opção vazia ("média").
+  function populateQuadSelect(){
+    var sel = document.getElementById('quadSelect');
     if(!sel || sel.options.length) return; // já populado (não recria a cada render)
-    var hoje = startOfMonth(new Date());
+    var anoAtual = new Date().getFullYear();
     var opts = [];
-    for(var i=0; i<24; i++){
-      var d = addMonths(hoje, -i);
-      opts.push('<option value="'+monthOptionValue(d)+'">'+monthOptionLabel(d)+'</option>');
+    for(var ano=anoAtual; ano>=anoAtual-2; ano--){
+      for(var q=2; q>=0; q--){
+        if(ano===anoAtual && q > quadSelecionado.qIndex) continue; // não mostra quadrimestre futuro do ano atual
+        opts.push('<option value="'+ano+'-'+q+'">'+QUAD_LABELS[q]+'/'+ano+'</option>');
+      }
     }
     sel.innerHTML = opts.join('');
-    sel.value = monthOptionValue(refMonthDate);
+    sel.value = quadSelecionado.ano+'-'+quadSelecionado.qIndex;
     sel.addEventListener('change', function(){
       var parts = sel.value.split('-');
-      refMonthDate = new Date(+parts[0], +parts[1]-1, 1);
+      quadSelecionado = {ano: +parts[0], qIndex: +parts[1]};
+      refMonthDate = null; // volta a mostrar a média do quadrimestre escolhido
+      populateMonthSelectForQuad();
       aplicarMesReferencia(false);
     });
+    populateMonthSelectForQuad();
+  }
+  // Preenche #refMonthSelect só com os 4 meses do quadrimestre selecionado
+  // (mais a opção vazia "média do quadrimestre", que fica selecionada por
+  // padrão). Refeito toda vez que o quadrimestre muda.
+  function populateMonthSelectForQuad(){
+    var sel = document.getElementById('refMonthSelect');
+    if(!sel) return;
+    var meses = mesesDoQuadrimestre(quadSelecionado.ano, quadSelecionado.qIndex);
+    var opts = ['<option value="">Média do quadrimestre</option>'];
+    meses.forEach(function(d){
+      opts.push('<option value="'+monthOptionValue(d)+'">'+monthOptionLabel(d)+'</option>');
+    });
+    sel.innerHTML = opts.join('');
+    sel.value = refMonthDate ? monthOptionValue(refMonthDate) : '';
+    sel.onchange = function(){
+      if(!sel.value){
+        refMonthDate = null;
+      } else {
+        var parts = sel.value.split('-');
+        refMonthDate = new Date(+parts[0], +parts[1]-1, 1);
+      }
+      aplicarMesReferencia(false);
+    };
+  }
+  // Combina os indicadores de vários meses (calculados individualmente,
+  // um período por mês) fazendo a MÉDIA de M1 e M2 — é assim que o
+  // quadrimestre vira "a média dos meses do quadrimestre". As contagens
+  // brutas (atendimentos, participações etc.) aparecem somadas, só como
+  // contexto na composição do cálculo.
+  function mediaDeMeses(resultadosMensais){
+    function media(campo){
+      var vals = resultadosMensais.map(function(r){ return r.data[campo]; }).filter(function(v){ return v!=null; });
+      if(!vals.length) return null;
+      return vals.reduce(function(a,b){ return a+b; }, 0) / vals.length;
+    }
+    function soma(campo){
+      return resultadosMensais.reduce(function(a,r){ return a + (r.data[campo]||0); }, 0);
+    }
+    var m1 = media('m1');
+    var m2 = media('m2');
+    var classificacaoM1 = classificarM1(m1);
+    var classificacaoM2 = classificarM2(m2);
+    var pontosM1 = PONTOS_POR_CLASSE[classificacaoM1];
+    var pontosM2 = PONTOS_POR_CLASSE[classificacaoM2];
+    var pontosM1Pesados = pontosM1!==undefined ? pontosM1*6 : null;
+    var pontosM2Pesados = pontosM2!==undefined ? pontosM2*4 : null;
+    var notaFinal = (pontosM1Pesados!=null && pontosM2Pesados!=null) ? (pontosM1Pesados+pontosM2Pesados) : null;
+    var desempenho = classificarDesempenho(notaFinal);
+
+    // "Pessoas atendidas": une as listas dos 4 meses, somando atendimentos
+    // e participações de quem aparece em mais de um mês.
+    var pessoasMap = {};
+    resultadosMensais.forEach(function(r){
+      r.pessoasAtendidas.rows.forEach(function(row){
+        var chave = String(row[0]).trim().toUpperCase();
+        if(!pessoasMap[chave]) pessoasMap[chave] = {nome:row[0], at:0, part:0};
+        pessoasMap[chave].at += row[1];
+        pessoasMap[chave].part += row[2];
+      });
+    });
+    var pessoasLista = Object.keys(pessoasMap).map(function(k){ return pessoasMap[k]; })
+      .sort(function(a,b){ return a.nome.localeCompare(b.nome,'pt-BR'); });
+    var pessoasAtendidasRows = pessoasLista.map(function(p){ return [p.nome, p.at, p.part, p.at+p.part]; });
+
+    return {
+      equipe: currentEquipe.label,
+      data: {
+        atendimentosIndividuais: soma('atendimentosIndividuais'),
+        participacoesColetivas: soma('participacoesColetivas'),
+        numeradorM1: soma('numeradorM1'),
+        denominadorM1: soma('denominadorM1'),
+        m1: m1,
+        classificacaoM1: classificacaoM1,
+        atividadesTotais: soma('atividadesTotais'),
+        atividadesCompartilhadas: soma('atividadesCompartilhadas'),
+        reunioesTotais: soma('reunioesTotais'),
+        reunioesCompartilhadas: soma('reunioesCompartilhadas'),
+        denominadorM2: soma('denominadorM2'),
+        numeradorM2: soma('numeradorM2'),
+        m2: m2,
+        classificacaoM2: classificacaoM2,
+        pontosM1: pontosM1Pesados,
+        pontosM2: pontosM2Pesados,
+        notaFinal: notaFinal,
+        desempenho: desempenho
+      },
+      notes: NOTAS_METODOLOGICAS,
+      pessoasAtendidas: {headers: ["Nome","Atendimentos","Participantes Ativ. Coletiva","Total"], rows: pessoasAtendidasRows}
+    };
   }
   function sheetCsvUrl(sheetName){
     return "https://docs.google.com/spreadsheets/d/" + SPREADSHEET_ID
@@ -1004,7 +1131,7 @@
   function renderDashboard(record, serieTendencia){
     serieTendencia = serieTendencia || [];
     document.getElementById('statusState').style.display = 'none';
-    populateRefMonthSelect();
+    populateQuadSelect();
     document.getElementById('topEquipe').textContent = record.equipe || '—';
     document.getElementById('topPeriodo').textContent = record.periodo
       ? 'Período: ' + record.periodo.inicio + ' a ' + record.periodo.fim
@@ -1172,7 +1299,7 @@
         var rec = loadHistoryArray().find(function(h){ return h.id === id; });
         if(rec){
           currentRecordId = id;
-          renderDashboard(rec, calcularSerieTendencia(latestWb, refMonthDate, TREND_MESES));
+          renderDashboard(rec, calcularSerieTendencia(latestWb, anchorMonthDate(), TREND_MESES));
         }
       });
     });
@@ -1228,19 +1355,40 @@
   function aplicarMesReferencia(saveHistory){
     if(!latestWb) return;
 
-    var janela = calcularJanelaPeriodo(refMonthDate);
-    var extracted = calcularIndicadoresDoPeriodo(latestWb, janela);
+    var extracted, periodo;
+    if(refMonthDate){
+      // Mês específico escolhido: indicadores só daquele mês (sem média).
+      var periodoMes = periodoMesUnico(refMonthDate);
+      extracted = calcularIndicadoresDoPeriodo(latestWb, periodoMes);
+      periodo = {inicio: fmtBRDate(periodoMes.inicio), fim: fmtBRDate(periodoMes.fim)};
+    } else {
+      // Nenhum mês escolhido: média dos 4 meses do quadrimestre selecionado.
+      var meses = mesesDoQuadrimestre(quadSelecionado.ano, quadSelecionado.qIndex);
+      var resultadosMensais = meses.map(function(m){
+        return calcularIndicadoresDoPeriodo(latestWb, periodoMesUnico(m));
+      });
+      extracted = mediaDeMeses(resultadosMensais);
+      periodo = {
+        inicio: fmtBRDate(periodoMesUnico(meses[0]).inicio),
+        fim: fmtBRDate(periodoMesUnico(meses[3]).fim)
+      };
+    }
 
     populateSheetsCache(latestWb);
     registrarListaCalculada("Pessoas atendidas", extracted.pessoasAtendidas);
 
-    var periodo = {inicio: fmtBRDate(janela.inicio), fim: fmtBRDate(janela.fim)};
-    var serie = calcularSerieTendencia(latestWb, refMonthDate, TREND_MESES);
+    var serie = calcularSerieTendencia(latestWb, anchorMonthDate(), TREND_MESES);
 
-    var selEl = document.getElementById('refMonthSelect');
-    if(selEl) selEl.value = monthOptionValue(refMonthDate);
+    var quadSelEl = document.getElementById('quadSelect');
+    if(quadSelEl) quadSelEl.value = quadSelecionado.ano+'-'+quadSelecionado.qIndex;
+    var mesSelEl = document.getElementById('refMonthSelect');
+    if(mesSelEl) mesSelEl.value = refMonthDate ? monthOptionValue(refMonthDate) : '';
     var winEl = document.getElementById('refWindowLabel');
-    if(winEl) winEl.innerHTML = 'Janela de '+JANELA_MESES+' meses: <b>'+periodo.inicio+' a '+periodo.fim+'</b>';
+    if(winEl){
+      winEl.innerHTML = refMonthDate
+        ? 'Mostrando apenas <b>'+monthOptionLabel(refMonthDate)+'</b>'
+        : 'Média de <b>'+QUAD_LABELS[quadSelecionado.qIndex]+'/'+quadSelecionado.ano+'</b> ('+periodo.inicio+' a '+periodo.fim+')';
+    }
 
     if(!saveHistory){
       var base = currentRecordId ? loadHistoryArray().find(function(h){ return h.id === currentRecordId; }) : null;
