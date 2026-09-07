@@ -1145,9 +1145,9 @@
     if(cfg.faltam<=0){
       faltamHtml = '<p class="meta-card-done">Meta já atingida ✓</p>';
     } else if(cfg.semanasRestantes<=0){
-      faltamHtml = '<p class="meta-card-faltam">Faltam: '+fmtInt(cfg.faltam)+' '+cfg.unidade+' (quadrimestre encerrado)</p>';
+      faltamHtml = '<p class="meta-card-faltam">Faltam: '+fmtInt(cfg.faltam)+' '+cfg.unidadeFaltam+' (quadrimestre encerrado)</p>';
     } else {
-      faltamHtml = '<p class="meta-card-faltam">Faltam: '+fmtInt(cfg.faltam)+' '+cfg.unidade+'</p>'
+      faltamHtml = '<p class="meta-card-faltam">Faltam: '+fmtInt(cfg.faltam)+' '+cfg.unidadeFaltam+'</p>'
         + '<p class="meta-card-sub">Média/semana: '+fmtDecMeta(cfg.mediaSemanaFaltam)+'</p>';
     }
     return '<div class="meta-card">'
@@ -1176,7 +1176,7 @@
   // quadrimestre selecionado: alvo = limiar × base (denominador), ritmo
   // médio necessário (mês/semana) pra bater o alvo ao longo do
   // quadrimestre inteiro, e quanto falta + ritmo pro tempo que resta.
-  function calcularMetasQuadrimestre(numerador, denominador, thresholds, unidade){
+  function calcularMetasQuadrimestre(numerador, denominador, thresholds, unidade, unidadeFaltam){
     var meses = mesesDoQuadrimestre(quadSelecionado.ano, quadSelecionado.qIndex);
     var inicioQuad = new Date(meses[0].getFullYear(), meses[0].getMonth(), 1, 0,0,0,0);
     var fimQuad = new Date(meses[3].getFullYear(), meses[3].getMonth()+1, 0, 23,59,59,999);
@@ -1189,7 +1189,7 @@
       var alvo = Math.ceil(t.value*denominador);
       var faltam = Math.max(0, alvo-(numerador||0));
       return {
-        label: t.label, color: t.color, unidade: unidade,
+        label: t.label, color: t.color, unidade: unidade, unidadeFaltam: unidadeFaltam || unidade,
         alvo: alvo,
         mediaMes: alvo/4,
         mediaSemana: alvo/semanasQuad,
@@ -1319,7 +1319,8 @@
 
     // ---- Meta do quadrimestre: alvo de atendimentos/ações compartilhadas
     // pra bater "Bom" e "Ótimo" em M1 e M2, com ritmo médio necessário. ----
-    var metaM1 = calcularMetasQuadrimestre(d.numeradorM1, d.denominadorM1, M1_META_THRESHOLDS, 'atend.');
+    var metaM1 = calcularMetasQuadrimestre(d.numeradorM1, d.denominadorM1, M1_META_THRESHOLDS, 'atend.',
+      'atendimentos (retornos) de pessoas que foram atendidas nos últimos 4 meses');
     var metaM2 = calcularMetasQuadrimestre(d.numeradorM2, d.denominadorM2, M2_META_THRESHOLDS, 'ações');
     document.getElementById('metaQuadRow').innerHTML =
         metaQuadrimestreHTML('Meta do quadrimestre — M1', d.denominadorM1, 'pessoas atendidas', metaM1.cards, metaM1.preliminar)
