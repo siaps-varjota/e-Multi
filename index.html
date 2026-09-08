@@ -59,13 +59,6 @@
   .topbar-meta .eq{font-size:15px;font-weight:600;}
   .topbar-meta .periodo{font-size:12px;color:var(--header-soft);margin-top:2px;}
   .topbar-meta .dt{font-size:12px;color:var(--header-soft);margin-top:2px;}
-  .equipe-switcher{display:flex;gap:8px;flex:1 1 auto;justify-content:center;flex-wrap:wrap;}
-  .equipe-btn{
-    padding:8px 16px;border-radius:999px;border:1px solid var(--line);
-    background:var(--surface);color:var(--ink-soft);font-family:'Inter',sans-serif;
-    font-size:13px;font-weight:600;cursor:pointer;
-  }
-  .equipe-btn.active{background:var(--header-bg);color:#fff;border-color:var(--header-bg);}
   .refresh-pill{
     display:flex;align-items:center;gap:8px;
     background:rgba(238,243,234,.08);border:1px solid rgba(238,243,234,.35);
@@ -94,8 +87,9 @@
   .ref-month-row{
     display:flex;align-items:center;gap:14px;flex-wrap:wrap;
     background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
-    padding:14px 18px;margin-bottom:20px;
+    padding:14px 18px;margin:20px 40px 0;max-width:1220px;margin-left:auto;margin-right:auto;
   }
+  .ref-month-row.hidden{display:none;}
   .ref-month-row label{font-size:13px;font-weight:600;color:var(--ink-soft);}
   .ref-month-row select{
     padding:8px 12px;border:1px solid var(--line);border-radius:6px;
@@ -288,7 +282,6 @@
     <h1>Painel eMulti</h1>
     <p class="tagline">Indicadores M1 e M2 calculados aqui a partir dos dados brutos da planilha publicada no Google Sheets.</p>
   </div>
-  <div class="equipe-switcher" id="equipeSwitcher"></div>
   <div class="topbar-right">
     <div class="topbar-meta">
       <div class="eq" id="topEquipe">—</div>
@@ -310,6 +303,16 @@
   <button class="tab" data-tab="notas">Notas metodológicas</button>
 </nav>
 
+<div class="ref-month-row" id="filterBar">
+  <label for="equipeSelect">Equipe</label>
+  <select id="equipeSelect"></select>
+  <label for="quadSelect">Quadrimestre</label>
+  <select id="quadSelect"></select>
+  <label for="refMonthSelect">Mês (opcional)</label>
+  <select id="refMonthSelect"></select>
+  <span class="ref-window-label" id="refWindowLabel"></span>
+</div>
+
 <main class="main">
   <div id="statusState" class="status-state">
     <div class="spinner-ring"></div>
@@ -318,13 +321,6 @@
   </div>
 
   <div id="tabGeral" class="tab-panel active">
-    <div class="ref-month-row">
-      <label for="quadSelect">Quadrimestre</label>
-      <select id="quadSelect"></select>
-      <label for="refMonthSelect">Mês (opcional)</label>
-      <select id="refMonthSelect"></select>
-      <span class="ref-window-label" id="refWindowLabel"></span>
-    </div>
     <div class="gauge-row" id="gaugeRow"></div>
     <div class="meta-quad-row" id="metaQuadRow"></div>
     <p class="section-title">Composição do cálculo</p>
@@ -1295,6 +1291,7 @@
   }
 
   // ---------- Tabs ----------
+  var FILTER_BAR_TABS = {geral:true, m1:true, m2:true};
   document.querySelectorAll('.tab').forEach(function(btn){
     btn.addEventListener('click', function(){
       document.querySelectorAll('.tab').forEach(function(b){ b.classList.toggle('active', b===btn); });
@@ -1302,6 +1299,7 @@
       document.querySelectorAll('.tab-panel').forEach(function(p){
         p.classList.toggle('active', p.id === 'tab'+target.charAt(0).toUpperCase()+target.slice(1));
       });
+      document.getElementById('filterBar').classList.toggle('hidden', !FILTER_BAR_TABS[target]);
     });
   });
 
@@ -1693,20 +1691,17 @@
   refreshBtn.addEventListener('click', fetchAndLoad);
 
   function renderEquipeSwitcher(){
-    var el = document.getElementById('equipeSwitcher');
+    var el = document.getElementById('equipeSelect');
     el.innerHTML = EQUIPES.map(function(eq){
-      return '<button class="equipe-btn'+(eq.key===currentEquipe.key?' active':'')+'" data-equipe="'+eq.key+'">'+escapeHtml(eq.label)+'</button>';
+      return '<option value="'+eq.key+'"'+(eq.key===currentEquipe.key?' selected':'')+'>'+escapeHtml(eq.label)+'</option>';
     }).join('');
-    el.querySelectorAll('.equipe-btn').forEach(function(btn){
-      btn.addEventListener('click', function(){
-        var key = btn.getAttribute('data-equipe');
-        if(key === currentEquipe.key) return;
-        currentEquipe = EQUIPES.filter(function(eq){ return eq.key === key; })[0];
-        renderEquipeSwitcher();
-        document.getElementById('statusState').style.display = '';
-        fetchAndLoad();
-      });
-    });
+    el.onchange = function(){
+      var key = el.value;
+      if(key === currentEquipe.key) return;
+      currentEquipe = EQUIPES.filter(function(eq){ return eq.key === key; })[0];
+      document.getElementById('statusState').style.display = '';
+      fetchAndLoad();
+    };
   }
   renderEquipeSwitcher();
 
