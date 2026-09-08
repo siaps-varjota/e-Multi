@@ -311,6 +311,10 @@
   .data-table tbody td{padding:7px 12px;border-bottom:1px solid var(--line);}
   .data-table tbody tr:hover{background:var(--paper);}
   .list-meta{font-size:12px;color:var(--ink-soft);margin:0 0 8px;}
+  .list-month-filter{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+  .list-month-filter-label{font-size:12.5px;font-weight:600;color:var(--ink-soft);white-space:nowrap;}
+  .list-month-filter .ms-wrap{min-width:200px;max-width:280px;}
+  .list-month-filter .ms-panel{max-width:260px;}
   .list-placeholder{
     border:1px dashed var(--line);border-radius:8px;padding:16px 18px;
     font-size:12.5px;color:var(--ink-soft);
@@ -734,6 +738,33 @@
   function m1ListNames(){ return ["Atendimentos", "Participantes Ativ. Coletiva", "Pessoas atendidas"].map(suffixedName); }
   function m2ListNames(){ return ["Atendimentos", "Resumo Reuniões", "Resumo Atividade Coletiva"].map(suffixedName); }
   var latestSheets = {}; // nome da aba -> {headers, rows} | {error}
+  // Filtro de mês (multisseleção) das listas das abas M1/M2: por lista
+  // (chave = nome sufixado da aba), guarda o índice da coluna de data
+  // encontrada e os meses atualmente marcados (["" ] vazio = todos os
+  // meses). Persistem entre re-renders pra não perder a seleção do
+  // usuário a cada atualização dos dados.
+  var listDateColIdx = {};
+  var listMonthFilters = {};
+  // Acha a coluna de data de uma lista bruta, testando os nomes usados
+  // nas abas de origem ("data" na maioria, "data_hora" em Atendimentos).
+  function dateColIndexForList(headers){
+    var idx = colIndex(headers, "data_hora");
+    if(idx >= 0) return idx;
+    return colIndex(headers, "data");
+  }
+  // Monta as opções de mês (mais recente primeiro) a partir dos valores
+  // de data realmente presentes nas linhas da lista.
+  function monthOptionsForList(cached, dateColIdx){
+    var seen = {}, months = [];
+    cached.rows.forEach(function(r){
+      var d = parseBRDate(r[dateColIdx]);
+      if(!d) return;
+      var v = monthOptionValue(d);
+      if(!seen[v]){ seen[v] = true; months.push(new Date(d.getFullYear(), d.getMonth(), 1)); }
+    });
+    months.sort(function(a,b){ return b-a; });
+    return months.map(function(d){ return {value: monthOptionValue(d), label: monthOptionLabel(d)}; });
+  }
 
   var STORAGE_KEY = "uploads";
   var currentRecordId = null;
@@ -1199,6 +1230,8 @@
     } else if(!cached.rows.length){
       body = '<div class="list-placeholder">Esta lista está vazia.</div>';
     } else {
+      var dateColIdx = dateColIndexForList(cached.headers);
+      listDateColIdx[name] = dateColIdx;
       var theadHtml = '<tr>'+cached.headers.map(function(h){ return '<th>'+escapeHtml(h)+'</th>'; }).join('')+'</tr>';
       var bodyHtml = cached.rows.map(function(r){
         return '<tr>'+cached.headers.map(function(h,i){
@@ -1214,7 +1247,14 @@
           + '<select class="filter-val" disabled><option value="">Todos os valores</option></select>'
           + '</div>';
       }).join('');
+      // Filtro de mês (multisseleção) — só aparece quando a lista tem uma
+      // coluna de data reconhecível ("data" ou "data_hora").
+      var monthFilterHtml = dateColIdx >= 0
+        ? '<div class="list-month-filter"><label class="list-month-filter-label">Mês</label>'
+          + '<div class="ms-wrap" data-month-filter="'+escapeHtml(name)+'"></div></div>'
+        : '';
       body = '<p class="list-meta">'+fmtInt(cached.rows.length)+(cached.rows.length===1?' linha':' linhas')+'</p>'
+        + monthFilterHtml
         + '<div class="list-filters" data-list-filters="'+escapeHtml(name)+'">'+filterPairsHtml+'</div>'
         + '<input class="list-search" type="text" placeholder="Filtrar nesta lista…" data-filter-key="'+escapeHtml(name)+'">'
         + '<div class="table-wrap"><table class="data-table"><thead>'+theadHtml+'</thead><tbody>'+bodyHtml+'</tbody></table></div>';
@@ -1228,6 +1268,10 @@
     el.innerHTML = names.map(renderListCard).join('');
 
     function applyFilters(card){
+      var listName = card.getAttribute('data-list-card');
+      var cached = latestSheets[listName];
+      var dateColIdx = listDateColIdx[listName];
+      var selectedMonths = listMonthFilters[listName] || [];
       var textInput = card.querySelector('.list-search');
       var term = textInput ? textInput.value.trim().toLowerCase() : '';
       var activeFilters = [];
@@ -1238,15 +1282,45 @@
         var val = valSelect ? valSelect.value : '';
         if(colIdx !== null && val !== ''){ activeFilters.push({colIdx:colIdx, val:val}); }
       });
-      card.querySelectorAll('tbody tr').forEach(function(tr){
+      card.querySelectorAll('tbody tr').forEach(function(tr, rowIdx){
         var matchesText = !term || tr.textContent.toLowerCase().indexOf(term) !== -1;
         var matchesCols = activeFilters.every(function(f){
           var cell = tr.children[f.colIdx];
           return cell && cell.textContent.trim() === f.val;
         });
-        tr.style.display = (matchesText && matchesCols) ? '' : 'none';
+        var matchesMonth = true;
+        if(selectedMonths.length && dateColIdx != null && dateColIdx >= 0){
+          var raw = cached && cached.rows[rowIdx] ? cached.rows[rowIdx][dateColIdx] : null;
+          var d = parseBRDate(raw);
+          var mv = d ? monthOptionValue(d) : null;
+          matchesMonth = !!mv && selectedMonths.indexOf(mv) >= 0;
+        }
+        tr.style.display = (matchesText && matchesCols && matchesMonth) ? '' : 'none';
       });
     }
+
+    el.querySelectorAll('[data-month-filter]').forEach(function(container){
+      var name = container.getAttribute('data-month-filter');
+      var cached = latestSheets[name];
+      var dateColIdx = listDateColIdx[name];
+      if(!cached || dateColIdx == null || dateColIdx < 0) return;
+      var opts = monthOptionsForList(cached, dateColIdx);
+      var validValues = opts.map(function(o){ return o.value; });
+      // Mantém só a seleção anterior que ainda faz sentido (evita "mês
+      // fantasma" depois que os dados são atualizados).
+      listMonthFilters[name] = (listMonthFilters[name] || []).filter(function(v){
+        return validValues.indexOf(v) >= 0;
+      });
+      var monthMs = createMultiSelect(container, {
+        placeholder: 'Todos os meses', multi: true, search: opts.length > 8, showTags: true,
+        onChange: function(keys){
+          listMonthFilters[name] = keys;
+          applyFilters(container.closest('.list-card'));
+        }
+      });
+      monthMs.setOptions(opts);
+      monthMs.setSelected(listMonthFilters[name]);
+    });
 
     el.querySelectorAll('[data-filter-key]').forEach(function(input){
       input.addEventListener('input', function(){
@@ -1483,25 +1557,32 @@
   }
 
   // ---------- Sparkline ----------
+  // points: [{y, label, value}] — "value" (opcional) é o texto já formatado
+  // (ex.: "2,45" ou "5,20%") mostrado acima de cada ponto da linha.
   function sparkline(points, color){
     if(points.length < 2) return '<p class="footnote">Ainda não há leituras suficientes para mostrar a tendência.</p>';
-    var W=320,H=90,pad=14;
+    var W=320,H=100,padX=14,padTop=20,padBottom=14;
     var vals = points.map(function(p){return p.y;});
     var min = Math.min.apply(null, vals), max = Math.max.apply(null, vals);
     if(min===max){ min = min - 1; max = max + 1; }
-    var stepX = (W-2*pad)/(points.length-1);
+    var stepX = (W-2*padX)/(points.length-1);
     var coords = points.map(function(p,i){
-      var x = pad + i*stepX;
-      var y = H-pad - ((p.y-min)/(max-min))*(H-2*pad);
+      var x = padX + i*stepX;
+      var y = H-padBottom - ((p.y-min)/(max-min))*(H-padTop-padBottom);
       return {x:x,y:y};
     });
     var path = coords.map(function(c,i){ return (i===0?"M ":"L ")+c.x+" "+c.y; }).join(" ");
     var dots = coords.map(function(c){ return '<circle cx="'+c.x+'" cy="'+c.y+'" r="3.2" fill="'+color+'"/>'; }).join("");
+    var valueLabels = points.map(function(p,i){
+      if(p.value===undefined || p.value===null || p.value==='') return '';
+      var ly = Math.max(9, coords[i].y - 8);
+      return '<text x="'+coords[i].x+'" y="'+ly+'" font-size="9.5" font-weight="600" fill="'+color+'" text-anchor="middle">'+escapeHtml(p.value)+'</text>';
+    }).join("");
     var labels = points.map(function(p,i){
       return '<text x="'+coords[i].x+'" y="'+(H-1)+'" font-size="9" fill="var(--ink-soft)" text-anchor="middle">'+p.label+'</text>';
     }).join("");
-    return '<svg class="spark-svg" viewBox="0 0 '+W+' '+(H+12)+'">'
-      + '<path d="'+path+'" fill="none" stroke="'+color+'" stroke-width="2"/>' + dots + labels + '</svg>';
+    return '<svg class="spark-svg" viewBox="0 0 '+W+' '+(H+14)+'">'
+      + '<path d="'+path+'" fill="none" stroke="'+color+'" stroke-width="2"/>' + dots + valueLabels + labels + '</svg>';
   }
 
   // ---------- Tabs ----------
@@ -1616,12 +1697,12 @@
     var trend = '';
     trend += '<div class="card trend-card"><h4>M1 mês a mês</h4>'
       + '<p class="cur">Mês de referência ('+refMonthLabel()+'): '+fmtDec(d.m1,2)+'</p>'
-      + sparkline(serieTendencia.map(function(p){ return {y:p.m1, label:monthShortLabel(p.mes)}; }).filter(function(p){return p.y!=null;}), '#153F35')
+      + sparkline(serieTendencia.map(function(p){ return {y:p.m1, label:monthShortLabel(p.mes), value:fmtDec(p.m1,2)}; }).filter(function(p){return p.y!=null;}), '#153F35')
       + '<p class="footnote">Cada ponto já é a janela de '+JANELA_MESES+' meses terminando naquele mês.</p>'
       + '</div>';
     trend += '<div class="card trend-card"><h4>M2 (%) mês a mês</h4>'
       + '<p class="cur">Mês de referência ('+monthOptionLabel(refMonthDate)+'): '+fmtDec(d.m2,2)+'%</p>'
-      + sparkline(serieTendencia.map(function(p){ return {y:p.m2, label:monthShortLabel(p.mes)}; }).filter(function(p){return p.y!=null;}), '#C68A3D')
+      + sparkline(serieTendencia.map(function(p){ return {y:p.m2, label:monthShortLabel(p.mes), value:fmtDec(p.m2,2)+'%'}; }).filter(function(p){return p.y!=null;}), '#C68A3D')
       + '<p class="footnote">Cada ponto já é a janela de '+JANELA_MESES+' meses terminando naquele mês.</p>'
       + '</div>';
     document.getElementById('trendRow').innerHTML = trend;
