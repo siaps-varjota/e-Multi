@@ -84,10 +84,11 @@
   }
   .tab.active{background:var(--header-bg);border-color:var(--header-bg);color:#fff;}
 
+  .filter-bar-outer{max-width:1220px;margin:20px auto 0;padding:0 40px;}
   .ref-month-row{
-    display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;
+    display:inline-flex;align-items:flex-start;gap:16px;flex-wrap:wrap;
     background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
-    padding:14px 18px;margin:20px 40px 0;max-width:1220px;margin-left:auto;margin-right:auto;
+    padding:14px 18px;
   }
   .ref-month-row.hidden{display:none;}
   .ref-window-label{font-size:12.5px;color:var(--ink-soft);white-space:normal;word-break:break-word;line-height:1.4;}
@@ -351,6 +352,7 @@
   <button class="tab" data-tab="notas">Notas metodológicas</button>
 </nav>
 
+<div class="filter-bar-outer">
 <div class="ref-month-row" id="filterBar">
   <div class="ms-field">
     <label>Equipe</label>
@@ -368,6 +370,7 @@
     <label class="ms-hidden-label" aria-hidden="true">Período</label>
     <span class="ref-window-label" id="refWindowLabel"></span>
   </div>
+</div>
 </div>
 
 <main class="main">
