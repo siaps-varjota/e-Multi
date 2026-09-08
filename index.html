@@ -293,7 +293,7 @@
     font-size:13px;background:var(--surface);color:var(--ink);
   }
   .list-search:focus{outline:none;border-color:var(--header-bg);}
-  .list-filters{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;}
+  .list-filters{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;}
   .filter-pair{display:flex;gap:6px;}
   .list-filters select{
     padding:8px 12px;border:1px solid var(--line);border-radius:6px;
@@ -311,7 +311,7 @@
   .data-table tbody td{padding:7px 12px;border-bottom:1px solid var(--line);}
   .data-table tbody tr:hover{background:var(--paper);}
   .list-meta{font-size:12px;color:var(--ink-soft);margin:0 0 8px;}
-  .list-month-filter{display:flex;align-items:center;gap:10px;}
+  .list-month-filter{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
   .list-month-filter-label{font-size:12.5px;font-weight:600;color:var(--ink-soft);white-space:nowrap;}
   .list-month-filter .ms-wrap{min-width:200px;max-width:280px;}
   .list-month-filter .ms-panel{max-width:260px;}
@@ -476,21 +476,14 @@
   // Quadrimestre selecionado (ano + índice 0/1/2). Começa no quadrimestre
   // que contém o mês atual; muda quando o usuário mexe no filtro de Quadrimestre.
   var quadSelecionado = quadrimestreDoMes(new Date());
-  // Meses específicos (dentro do quadrimestre) escolhidos pelo usuário no
-  // filtro de Mês — agora multisseleção, igual ao filtro de Equipe. Array
-  // vazio = nenhum mês marcado => usa a MÉDIA dos 4 meses do quadrimestre
-  // selecionado. Com 1 ou mais meses marcados, os indicadores passam a
-  // ser a média só dos meses marcados (cada um já calculado com sua
-  // própria janela móvel de JANELA_MESES meses — ver mediaDeMeses).
-  var mesesSelecionados = [];
-  // Meses realmente usados no cálculo agora: os marcados (ordenados), ou
-  // os 4 do quadrimestre inteiro se nenhum estiver marcado.
-  function mesesAtivos(){
-    if(mesesSelecionados.length){
-      return mesesSelecionados.slice().sort(function(a,b){ return a-b; });
-    }
-    return mesesDoQuadrimestre(quadSelecionado.ano, quadSelecionado.qIndex);
-  }
+  // Data(s) escolhida(s) no filtro de Mês. Array vazio = padrão => usa a
+  // MÉDIA dos 4 meses do quadrimestre selecionado. Um ou mais meses
+  // marcados: cada mês entra com o SEU PRÓPRIO resultado (já calculado
+  // com a janela móvel de JANELA_MESES meses terminando nele — ver
+  // calcularJanelaPeriodo) e, havendo mais de um, os resultados são
+  // combinados pela média (mesma lógica já usada pra média do
+  // quadrimestre, ver mediaDeMeses).
+  var refMonthDates = [];
   function quadrimestreDoMes(d){
     return {ano: d.getFullYear(), qIndex: Math.floor(d.getMonth()/4)};
   }
@@ -507,12 +500,10 @@
     return {inicio: inicio, fim: fim};
   }
   // Mês "âncora" usado pela aba Tendência: o mais recente dos meses
-  // marcados, se houver algum, ou o último mês do quadrimestre selecionado.
+  // escolhidos, se houver algum, ou o último mês do quadrimestre
+  // selecionado.
   function anchorMonthDate(){
-    if(mesesSelecionados.length){
-      var ativos = mesesAtivos();
-      return ativos[ativos.length-1];
-    }
+    if(refMonthDates.length) return refMonthDates[refMonthDates.length-1];
     return new Date(quadSelecionado.ano, quadSelecionado.qIndex*4+3, 1);
   }
   // Só as abas de dados BRUTOS — o painel calcula M1/M2 sozinho a partir
@@ -562,13 +553,14 @@
     var s = d.toLocaleDateString('pt-BR', {month:'long', year:'numeric'});
     return s.charAt(0).toUpperCase() + s.slice(1);
   }
-  // mesesSelecionados fica vazio quando o usuário está vendo a MÉDIA do
-  // quadrimestre inteiro (nenhum mês específico marcado). Este helper dá
-  // um rótulo pro "mês de referência" mesmo nesse caso (mostra o nome do
-  // quadrimestre em vez de travar em monthOptionLabel, que não aceita
-  // null).
+  // refMonthDates vazio: usuário está vendo a MÉDIA do quadrimestre
+  // (nenhum mês específico marcado). Com 1+ meses marcados, mostra o(s)
+  // mês(es) escolhido(s) — este helper monta o rótulo certo pros dois
+  // casos (usado nos lugares que exibem "Mês de referência (...)").
   function refMonthLabel(){
-    return mesesSelecionados.length ? monthOptionLabel(anchorMonthDate()) : 'Média do quadrimestre';
+    if(!refMonthDates.length) return 'Média do quadrimestre';
+    if(refMonthDates.length === 1) return monthOptionLabel(refMonthDates[0]);
+    return refMonthDates.map(monthShortLabel).join(' + ');
   }
   function monthShortLabel(d){
     var s = d.toLocaleDateString('pt-BR', {month:'short'}).replace('.', '');
@@ -597,10 +589,10 @@
     return pontos;
   }
   // Popula o #quadMs com quadrimestres do ano atual e dos 2 anteriores
-  // (mais recente primeiro) — valor único (multi:false) — e o #mesMs com
-  // os 4 meses do quadrimestre atualmente selecionado — multisseleção
-  // (multi:true), igual ao seletor de Equipe: nenhum mês marcado = média
-  // do quadrimestre inteiro.
+  // (mais recente primeiro), e o #mesMs com os 4 meses do quadrimestre
+  // atualmente selecionado + uma opção vazia ("média"). Os dois são
+  // widgets de valor único (multi:false) com o mesmo visual arredondado
+  // do seletor de Equipe.
   var quadMs = null, mesMs = null;
   function populateQuadSelect(){
     var container = document.getElementById('quadMs');
@@ -610,7 +602,7 @@
       onChange: function(keys){
         var parts = keys[0].split('-');
         quadSelecionado = {ano: +parts[0], qIndex: +parts[1]};
-        mesesSelecionados = []; // volta a mostrar a média do quadrimestre escolhido
+        refMonthDates = []; // volta a mostrar a média do quadrimestre escolhido
         populateMonthSelectForQuad();
         aplicarMesReferencia(false);
       }
@@ -627,11 +619,12 @@
     quadMs.setSelected([quadSelecionado.ano+'-'+quadSelecionado.qIndex]);
     populateMonthSelectForQuad();
   }
-  // Preenche #mesMs com os 4 meses do quadrimestre selecionado. Agora é
-  // multisseleção (igual ao filtro de Equipe): nenhum mês marcado = média
-  // do quadrimestre inteiro; 1+ meses marcados = média só desses meses.
-  // As opções são refeitas toda vez que o quadrimestre muda; o widget em
-  // si (mesMs) é criado uma única vez.
+  // Preenche #mesMs com os 4 meses do quadrimestre selecionado — agora em
+  // multisseleção: marcar 1+ meses troca o resultado pro(s) mês(es)
+  // escolhido(s) (cada um com sua janela móvel própria, combinados pela
+  // média quando há mais de um); nenhum marcado = média do quadrimestre
+  // inteiro. As opções são refeitas toda vez que o quadrimestre muda; o
+  // widget em si (mesMs) é criado uma única vez.
   function populateMonthSelectForQuad(){
     var container = document.getElementById('mesMs');
     if(!container) return;
@@ -639,20 +632,24 @@
       mesMs = createMultiSelect(container, {
         placeholder: 'Média do quadrimestre', multi: true, search: false, showTags: true,
         onChange: function(keys){
-          mesesSelecionados = keys.map(function(v){
+          refMonthDates = keys.map(function(v){
             var parts = v.split('-');
             return new Date(+parts[0], +parts[1]-1, 1);
-          });
+          }).sort(function(a,b){ return a-b; });
           aplicarMesReferencia(false);
         }
       });
     }
     var meses = mesesDoQuadrimestre(quadSelecionado.ano, quadSelecionado.qIndex);
+    var mesesValidos = meses.map(monthOptionValue);
     var opts = meses.map(function(d){
       return {value: monthOptionValue(d), label: monthOptionLabel(d)};
     });
+    // Ao trocar de quadrimestre, mantém só a seleção que ainda faz parte
+    // do novo quadrimestre (evita "mês fantasma" de outro período).
+    refMonthDates = refMonthDates.filter(function(d){ return mesesValidos.indexOf(monthOptionValue(d)) >= 0; });
     mesMs.setOptions(opts);
-    mesMs.setSelected(mesesSelecionados.map(monthOptionValue));
+    mesMs.setSelected(refMonthDates.map(monthOptionValue));
   }
   // Combina os indicadores de vários meses fazendo a MÉDIA de M1 e M2 —
   // é assim que o quadrimestre vira "a média dos meses do quadrimestre".
@@ -1265,7 +1262,8 @@
           + '<div class="ms-wrap" data-month-filter="'+escapeHtml(name)+'"></div></div>'
         : '';
       body = '<p class="list-meta">'+fmtInt(cached.rows.length)+(cached.rows.length===1?' linha':' linhas')+'</p>'
-        + '<div class="list-filters" data-list-filters="'+escapeHtml(name)+'">'+monthFilterHtml+filterPairsHtml+'</div>'
+        + monthFilterHtml
+        + '<div class="list-filters" data-list-filters="'+escapeHtml(name)+'">'+filterPairsHtml+'</div>'
         + '<input class="list-search" type="text" placeholder="Filtrar nesta lista…" data-filter-key="'+escapeHtml(name)+'">'
         + '<div class="table-wrap"><table class="data-table"><thead>'+theadHtml+'</thead><tbody>'+bodyHtml+'</tbody></table></div>';
     }
@@ -1836,8 +1834,8 @@
   // precisar buscar a planilha de novo na rede.
   var latestWb = null;
 
-  // Recalcula M1/M2/pontos/nota + a série de tendência pros meses de
-  // referência atuais (mesesSelecionados), a partir do cache latestWb.
+  // Recalcula M1/M2/pontos/nota + a série de tendência pro mês de
+  // referência atual (refMonthDates), a partir do cache latestWb.
   // saveHistory=true (usado logo após um fetch): grava uma nova "leitura"
   // no histórico se os dados mudaram desde a última do mesmo período/equipe.
   // saveHistory=false (usado ao trocar o seletor de mês): só recalcula e
@@ -1845,35 +1843,54 @@
   function aplicarMesReferencia(saveHistory){
     if(!latestWb) return;
 
-    // Meses realmente usados no cálculo: os marcados no filtro de Mês, ou
-    // os 4 do quadrimestre inteiro se nenhum estiver marcado. O M1/M2 de
-    // CADA mês que entra na média já é o valor com a janela móvel de
-    // JANELA_MESES meses terminando naquele mês (mesma regra oficial usada
-    // no gráfico de tendência) — por isso calculamos cada mês duas vezes:
-    // uma com a janela (pra entrar na média de M1/M2) e outra isolada, só
-    // o mês em si (pra somar contagens de contexto e montar "Pessoas
-    // atendidas" sem sobrepor dados de meses vizinhos). Com um único mês
-    // marcado, a "média" resultante é simplesmente o valor daquele mês.
-    var meses = mesesAtivos();
-    var resultadosMensais = meses.map(function(m){
-      return calcularIndicadoresDoPeriodo(latestWb, periodoMesUnico(m));
-    });
-    var resultadosJanela = meses.map(function(m){
-      return calcularIndicadoresDoPeriodo(latestWb, calcularJanelaPeriodo(m));
-    });
-    var extracted = mediaDeMeses(resultadosMensais, resultadosJanela);
-    var periodo;
-    if(mesesSelecionados.length === 1){
-      // Um único mês marcado: mostra a janela móvel real usada no cálculo
-      // (ex.: maio → fev a maio), igual ao comportamento anterior.
-      var janelaMes = calcularJanelaPeriodo(meses[0]);
+    var extracted, periodo;
+    if(refMonthDates.length === 1){
+      // Um único mês escolhido: NÃO é só aquele mês isolado — é a janela
+      // móvel de JANELA_MESES meses TERMINANDO nesse mês (ex.: maio →
+      // fev, mar, abr e maio, incluindo os dois extremos), a mesma janela
+      // usada pela série de tendência (ver calcularJanelaPeriodo).
+      var janelaMes = calcularJanelaPeriodo(refMonthDates[0]);
+      extracted = calcularIndicadoresDoPeriodo(latestWb, janelaMes);
       periodo = {inicio: fmtBRDate(janelaMes.inicio), fim: fmtBRDate(janelaMes.fim)};
+    } else if(refMonthDates.length > 1){
+      // Vários meses escolhidos: o M1/M2 de CADA mês marcado já é o valor
+      // com a janela móvel de JANELA_MESES meses terminando naquele mês
+      // (mesma regra do mês único, acima) — os resultados dos meses
+      // marcados entram na MÉDIA (mesmo princípio da média do
+      // quadrimestre, ver mediaDeMeses), e os totais de contexto/"Pessoas
+      // atendidas" somam o mês isolado (sem janela) de cada um, pra não
+      // sobrepor dados de meses vizinhos quando as janelas se cruzam.
+      var resultadosMensaisSel = refMonthDates.map(function(m){
+        return calcularIndicadoresDoPeriodo(latestWb, periodoMesUnico(m));
+      });
+      var resultadosJanelaSel = refMonthDates.map(function(m){
+        return calcularIndicadoresDoPeriodo(latestWb, calcularJanelaPeriodo(m));
+      });
+      extracted = mediaDeMeses(resultadosMensaisSel, resultadosJanelaSel);
+      periodo = {
+        inicio: fmtBRDate(periodoMesUnico(refMonthDates[0]).inicio),
+        fim: fmtBRDate(periodoMesUnico(refMonthDates[refMonthDates.length-1]).fim)
+      };
     } else {
-      // Nenhum mês marcado (média do quadrimestre) ou vários meses
-      // marcados: mostra o intervalo de calendário coberto pelos meses.
+      // Nenhum mês escolhido: média dos 4 meses do quadrimestre selecionado.
+      // O M1/M2 de CADA mês usado na média já é o valor com a janela móvel
+      // de JANELA_MESES meses terminando naquele mês (mesma regra oficial
+      // usada na seleção de mês individual e no gráfico de tendência) —
+      // por isso calculamos cada mês duas vezes: uma com a janela (pra
+      // entrar na média de M1/M2) e outra isolada, só o mês em si (pra
+      // somar contagens de contexto e montar "Pessoas atendidas" sem
+      // sobrepor dados de meses vizinhos).
+      var meses = mesesDoQuadrimestre(quadSelecionado.ano, quadSelecionado.qIndex);
+      var resultadosMensais = meses.map(function(m){
+        return calcularIndicadoresDoPeriodo(latestWb, periodoMesUnico(m));
+      });
+      var resultadosJanela = meses.map(function(m){
+        return calcularIndicadoresDoPeriodo(latestWb, calcularJanelaPeriodo(m));
+      });
+      extracted = mediaDeMeses(resultadosMensais, resultadosJanela);
       periodo = {
         inicio: fmtBRDate(periodoMesUnico(meses[0]).inicio),
-        fim: fmtBRDate(periodoMesUnico(meses[meses.length-1]).fim)
+        fim: fmtBRDate(periodoMesUnico(meses[3]).fim)
       };
     }
 
@@ -1883,17 +1900,12 @@
     var serie = calcularSerieTendencia(latestWb, anchorMonthDate(), TREND_MESES);
 
     if(quadMs) quadMs.setSelected([quadSelecionado.ano+'-'+quadSelecionado.qIndex]);
-    if(mesMs) mesMs.setSelected(mesesSelecionados.map(monthOptionValue));
+    if(mesMs) mesMs.setSelected(refMonthDates.map(monthOptionValue));
     var winEl = document.getElementById('refWindowLabel');
     if(winEl){
-      if(mesesSelecionados.length === 1){
-        winEl.innerHTML = 'Resultado de <b>'+monthOptionLabel(meses[0])+'</b> — janela de '+JANELA_MESES+' meses ('+periodo.inicio+' a '+periodo.fim+')';
-      } else if(mesesSelecionados.length > 1){
-        var mesesLabel = meses.map(monthOptionLabel).join(' + ');
-        winEl.innerHTML = 'Média de <b>'+mesesLabel+'</b> ('+periodo.inicio+' a '+periodo.fim+')';
-      } else {
-        winEl.innerHTML = 'Média de <b>'+QUAD_LABELS[quadSelecionado.qIndex]+'/'+quadSelecionado.ano+'</b> ('+periodo.inicio+' a '+periodo.fim+')';
-      }
+      winEl.innerHTML = refMonthDates.length
+        ? 'Resultado de <b>'+refMonthLabel()+'</b> — janela de '+JANELA_MESES+' meses cada ('+periodo.inicio+' a '+periodo.fim+')'
+        : 'Média de <b>'+QUAD_LABELS[quadSelecionado.qIndex]+'/'+quadSelecionado.ano+'</b> ('+periodo.inicio+' a '+periodo.fim+')';
     }
 
     if(!saveHistory){
