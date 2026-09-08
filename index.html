@@ -1212,6 +1212,75 @@
   }
 
   // ---------- Listas ----------
+  // "Pessoas atendidas" com filtro de mês PRÓPRIO (independente do filtro
+  // de Mês do topo): deduplica direto de Atendimentos + Participantes
+  // Ativ. Coletiva (já filtradas por equipe no fetch), sem depender de
+  // nenhum link/aba externa. monthValues vazio = todos os meses
+  // disponíveis (sem filtro); com meses marcados, só entram atendimentos/
+  // participações daqueles meses.
+  function pessoasAtendidasParaMeses(monthValues){
+    var pessoasSet = {}; // nome em maiúsculas -> {nome, at, part}
+    function dentroDoFiltro(d){
+      if(!monthValues || !monthValues.length) return true;
+      return !!d && monthValues.indexOf(monthOptionValue(d)) >= 0;
+    }
+    var atCached = latestSheets[suffixedName("Atendimentos")];
+    if(atCached){
+      var iData = colIndex(atCached.headers, "data_hora");
+      var iNome = colIndex(atCached.headers, "nome");
+      if(iData >= 0 && iNome >= 0){
+        atCached.rows.forEach(function(r){
+          var nome = String(r[iNome]||"").trim();
+          if(!nome || !dentroDoFiltro(parseBRDate(r[iData]))) return;
+          var chave = nome.toUpperCase();
+          if(!pessoasSet[chave]) pessoasSet[chave] = {nome:nome, at:0, part:0};
+          pessoasSet[chave].at++;
+        });
+      }
+    }
+    var partCached = latestSheets[suffixedName("Participantes Ativ. Coletiva")];
+    if(partCached){
+      var iPData = colIndex(partCached.headers, "data");
+      var iPNome = colIndex(partCached.headers, "participante");
+      if(iPData >= 0 && iPNome >= 0){
+        partCached.rows.forEach(function(r){
+          var nome = String(r[iPNome]||"").trim();
+          if(!nome || nome.indexOf("(sem lista nominal") === 0 || !dentroDoFiltro(parseBRDate(r[iPData]))) return;
+          var chave = nome.toUpperCase();
+          if(!pessoasSet[chave]) pessoasSet[chave] = {nome:nome, at:0, part:0};
+          pessoasSet[chave].part++;
+        });
+      }
+    }
+    var pessoasLista = Object.keys(pessoasSet).map(function(k){ return pessoasSet[k]; })
+      .sort(function(a,b){ return a.nome.localeCompare(b.nome,'pt-BR'); });
+    return {
+      headers: ["Nome","Atendimentos","Participantes Ativ. Coletiva","Total"],
+      rows: pessoasLista.map(function(p){ return [p.nome, p.at, p.part, p.at+p.part]; })
+    };
+  }
+  // Meses disponíveis pro filtro de "Pessoas atendidas": união dos meses
+  // com dado em Atendimentos e em Participantes Ativ. Coletiva (mais
+  // recente primeiro).
+  function monthOptionsParaPessoasAtendidas(){
+    var seen = {}, months = [];
+    function coletar(name, dateHeader){
+      var cached = latestSheets[name];
+      if(!cached) return;
+      var idx = colIndex(cached.headers, dateHeader);
+      if(idx < 0) return;
+      cached.rows.forEach(function(r){
+        var d = parseBRDate(r[idx]);
+        if(!d) return;
+        var v = monthOptionValue(d);
+        if(!seen[v]){ seen[v] = true; months.push(new Date(d.getFullYear(), d.getMonth(), 1)); }
+      });
+    }
+    coletar(suffixedName("Atendimentos"), "data_hora");
+    coletar(suffixedName("Participantes Ativ. Coletiva"), "data");
+    months.sort(function(a,b){ return b-a; });
+    return months.map(function(d){ return {value: monthOptionValue(d), label: monthOptionLabel(d)}; });
+  }
   function populateSheetsCache(wb){
     latestSheets = {};
     wb.SheetNames.forEach(function(name){
@@ -1223,19 +1292,21 @@
       latestSheets[name] = {headers: headers, rows: rows.slice(1)};
     });
   }
-  // Hook: injeta no cache de listas uma aba "virtual" que não existe na
-  // planilha (é calculada aqui no navegador a partir de Atendimentos +
-  // Participantes Ativ. Coletiva). Chamado logo após populateSheetsCache().
-  function registrarListaCalculada(nomeBase, listaCalculada){
-    latestSheets[suffixedName(nomeBase)] = listaCalculada;
-  }
 
   function renderListCard(name){
-    var cached = latestSheets[name];
+    // "Pessoas atendidas" é uma lista calculada aqui mesmo no navegador
+    // (dedup de Atendimentos + Participantes Ativ. Coletiva) — ver
+    // pessoasAtendidasParaMeses. Tem filtro de mês PRÓPRIO, independente
+    // do filtro de Mês do topo da página.
+    var isPessoasAtendidas = (name === suffixedName("Pessoas atendidas"));
+    var cached = isPessoasAtendidas
+      ? pessoasAtendidasParaMeses(listMonthFilters[name] || [])
+      : latestSheets[name];
+    if(isPessoasAtendidas) latestSheets[name] = cached;
     var body;
     if(!cached){
       body = '<div class="list-placeholder">Não encontramos uma aba chamada "'+escapeHtml(name)+'" na planilha publicada.</div>';
-    } else if(!cached.rows.length){
+    } else if(!cached.rows.length && !isPessoasAtendidas){
       body = '<div class="list-placeholder">Esta lista está vazia.</div>';
     } else {
       var dateColIdx = dateColIndexForList(cached.headers);
@@ -1255,11 +1326,12 @@
           + '<select class="filter-val" disabled><option value="">Todos os valores</option></select>'
           + '</div>';
       }).join('');
-      // Filtro de mês (multisseleção) — só aparece quando a lista tem uma
-      // coluna de data reconhecível ("data" ou "data_hora").
-      var monthFilterHtml = dateColIdx >= 0
+      // Filtro de mês (multisseleção) — aparece quando a lista tem uma
+      // coluna de data reconhecível ("data" ou "data_hora"), ou é a
+      // "Pessoas atendidas" calculada (filtro próprio, ver acima).
+      var monthFilterHtml = (dateColIdx >= 0 || isPessoasAtendidas)
         ? '<div class="list-month-filter"><label class="list-month-filter-label">Mês</label>'
-          + '<div class="ms-wrap" data-month-filter="'+escapeHtml(name)+'"></div></div>'
+          + '<div class="ms-wrap" data-month-filter="'+escapeHtml(name)+'"'+(isPessoasAtendidas ? ' data-computed-months="1"' : '')+'></div></div>'
         : '';
       body = '<p class="list-meta">'+fmtInt(cached.rows.length)+(cached.rows.length===1?' linha':' linhas')+'</p>'
         + monthFilterHtml
@@ -1309,6 +1381,40 @@
 
     el.querySelectorAll('[data-month-filter]').forEach(function(container){
       var name = container.getAttribute('data-month-filter');
+      if(container.getAttribute('data-computed-months') === '1'){
+        // "Pessoas atendidas": filtro de mês próprio — recalcula a
+        // dedup (Atendimentos + Participantes Ativ. Coletiva) na hora,
+        // em vez de só esconder/mostrar linhas de uma tabela fixa.
+        var optsCalc = monthOptionsParaPessoasAtendidas();
+        var validCalc = optsCalc.map(function(o){ return o.value; });
+        listMonthFilters[name] = (listMonthFilters[name] || []).filter(function(v){
+          return validCalc.indexOf(v) >= 0;
+        });
+        var calcMs = createMultiSelect(container, {
+          placeholder: 'Todos os meses', multi: true, search: optsCalc.length > 8, showTags: true,
+          onChange: function(keys){
+            listMonthFilters[name] = keys;
+            var card = container.closest('.list-card');
+            var novoCached = pessoasAtendidasParaMeses(keys);
+            latestSheets[name] = novoCached;
+            var metaEl = card.querySelector('.list-meta');
+            if(metaEl) metaEl.textContent = fmtInt(novoCached.rows.length) + (novoCached.rows.length===1 ? ' linha' : ' linhas');
+            var tbody = card.querySelector('tbody');
+            if(tbody){
+              tbody.innerHTML = novoCached.rows.map(function(r){
+                return '<tr>'+novoCached.headers.map(function(h,i){
+                  var v = r[i];
+                  return '<td>'+escapeHtml(v===undefined||v===null?'':v)+'</td>';
+                }).join('')+'</tr>';
+              }).join('');
+            }
+            applyFilters(card);
+          }
+        });
+        calcMs.setOptions(optsCalc);
+        calcMs.setSelected(listMonthFilters[name]);
+        return;
+      }
       var cached = latestSheets[name];
       var dateColIdx = listDateColIdx[name];
       if(!cached || dateColIdx == null || dateColIdx < 0) return;
@@ -1895,7 +2001,10 @@
     }
 
     populateSheetsCache(latestWb);
-    registrarListaCalculada("Pessoas atendidas", extracted.pessoasAtendidas);
+    // "Pessoas atendidas" agora NÃO usa mais extracted.pessoasAtendidas
+    // (ligado ao filtro de Mês do topo) — a lista, na aba Listas, é
+    // recalculada direto por renderListCard/pessoasAtendidasParaMeses,
+    // com o próprio filtro de mês (ver renderListsSection).
 
     var serie = calcularSerieTendencia(latestWb, anchorMonthDate(), TREND_MESES);
 
