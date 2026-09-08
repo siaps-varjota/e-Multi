@@ -293,7 +293,7 @@
     font-size:13px;background:var(--surface);color:var(--ink);
   }
   .list-search:focus{outline:none;border-color:var(--header-bg);}
-  .list-filters{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;}
+  .list-filters{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px;align-items:center;justify-content:center;}
   .filter-pair{display:flex;gap:6px;}
   .list-filters select{
     padding:8px 12px;border:1px solid var(--line);border-radius:6px;
@@ -311,9 +311,9 @@
   .data-table tbody td{padding:7px 12px;border-bottom:1px solid var(--line);}
   .data-table tbody tr:hover{background:var(--paper);}
   .list-meta{font-size:12px;color:var(--ink-soft);margin:0 0 8px;}
-  .list-month-filter{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+  .list-month-filter{display:flex;align-items:center;gap:8px;margin-bottom:0;}
   .list-month-filter-label{font-size:12.5px;font-weight:600;color:var(--ink-soft);white-space:nowrap;}
-  .list-month-filter .ms-wrap{min-width:200px;max-width:280px;}
+  .list-month-filter .ms-wrap{min-width:170px;max-width:220px;}
   .list-month-filter .ms-panel{max-width:260px;}
   .list-placeholder{
     border:1px dashed var(--line);border-radius:8px;padding:16px 18px;
@@ -1328,14 +1328,15 @@
       }).join('');
       // Filtro de mês (multisseleção) — aparece quando a lista tem uma
       // coluna de data reconhecível ("data" ou "data_hora"), ou é a
-      // "Pessoas atendidas" calculada (filtro próprio, ver acima).
+      // "Pessoas atendidas" calculada (filtro próprio, ver acima). Fica
+      // na MESMA linha dos filtros de coluna (dentro de .list-filters),
+      // como o primeiro item da fileira.
       var monthFilterHtml = (dateColIdx >= 0 || isPessoasAtendidas)
         ? '<div class="list-month-filter"><label class="list-month-filter-label">Mês</label>'
           + '<div class="ms-wrap" data-month-filter="'+escapeHtml(name)+'"'+(isPessoasAtendidas ? ' data-computed-months="1"' : '')+'></div></div>'
         : '';
       body = '<p class="list-meta">'+fmtInt(cached.rows.length)+(cached.rows.length===1?' linha':' linhas')+'</p>'
-        + monthFilterHtml
-        + '<div class="list-filters" data-list-filters="'+escapeHtml(name)+'">'+filterPairsHtml+'</div>'
+        + '<div class="list-filters" data-list-filters="'+escapeHtml(name)+'">'+monthFilterHtml+filterPairsHtml+'</div>'
         + '<input class="list-search" type="text" placeholder="Filtrar nesta lista…" data-filter-key="'+escapeHtml(name)+'">'
         + '<div class="table-wrap"><table class="data-table"><thead>'+theadHtml+'</thead><tbody>'+bodyHtml+'</tbody></table></div>';
     }
@@ -1362,6 +1363,7 @@
         var val = valSelect ? valSelect.value : '';
         if(colIdx !== null && val !== ''){ activeFilters.push({colIdx:colIdx, val:val}); }
       });
+      var visibleCount = 0;
       card.querySelectorAll('tbody tr').forEach(function(tr, rowIdx){
         var matchesText = !term || tr.textContent.toLowerCase().indexOf(term) !== -1;
         var matchesCols = activeFilters.every(function(f){
@@ -1375,8 +1377,15 @@
           var mv = d ? monthOptionValue(d) : null;
           matchesMonth = !!mv && selectedMonths.indexOf(mv) >= 0;
         }
-        tr.style.display = (matchesText && matchesCols && matchesMonth) ? '' : 'none';
+        var visible = matchesText && matchesCols && matchesMonth;
+        tr.style.display = visible ? '' : 'none';
+        if(visible) visibleCount++;
       });
+      // Contagem de linhas mostrada acima da lista: reflete o resultado
+      // depois de aplicar TODOS os filtros ativos (mês, colunas e busca),
+      // não o total bruto da lista.
+      var metaEl = card.querySelector('.list-meta');
+      if(metaEl) metaEl.textContent = fmtInt(visibleCount) + (visibleCount === 1 ? ' linha' : ' linhas');
     }
 
     el.querySelectorAll('[data-month-filter]').forEach(function(container){
@@ -1397,8 +1406,6 @@
             var card = container.closest('.list-card');
             var novoCached = pessoasAtendidasParaMeses(keys);
             latestSheets[name] = novoCached;
-            var metaEl = card.querySelector('.list-meta');
-            if(metaEl) metaEl.textContent = fmtInt(novoCached.rows.length) + (novoCached.rows.length===1 ? ' linha' : ' linhas');
             var tbody = card.querySelector('tbody');
             if(tbody){
               tbody.innerHTML = novoCached.rows.map(function(r){
@@ -1413,6 +1420,7 @@
         });
         calcMs.setOptions(optsCalc);
         calcMs.setSelected(listMonthFilters[name]);
+        applyFilters(container.closest('.list-card'));
         return;
       }
       var cached = latestSheets[name];
@@ -1434,6 +1442,7 @@
       });
       monthMs.setOptions(opts);
       monthMs.setSelected(listMonthFilters[name]);
+      applyFilters(container.closest('.list-card'));
     });
 
     el.querySelectorAll('[data-filter-key]').forEach(function(input){
