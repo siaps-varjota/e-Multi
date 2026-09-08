@@ -1061,6 +1061,10 @@
   }
 
   var PONTOS_POR_CLASSE = {"Regular":0.25, "Suficiente":0.5, "Bom":0.75, "Ótimo":1};
+  // Mesmas cores dos "pills" de classificação (ver :root), usadas pra
+  // colorir a linha/rótulo de média de cada quadrimestre no gráfico de
+  // Tendência conforme a faixa em que a média cai.
+  var CLASS_COLOR = {"Regular":"#B5474B", "Suficiente":"#C68A3D", "Bom":"#6B8F71", "Ótimo":"#2F6F5E"};
 
   function classificarM1(v){
     if(v===null) return "—";
@@ -1703,14 +1707,24 @@
   function sparkline(points, color, opts){
     opts = opts || {};
     if(points.length < 2) return '<p class="footnote">Ainda não há leituras suficientes para mostrar a tendência.</p>';
-    var W=320,H=100,padX=14,padTop=20,padBottom=14;
+    var hasAvg = !!opts.quadAvg;
+    var W=320, padX=14, padTop=20;
+    // Com linha de média, reserva uma faixa a mais (avgLabelGap) entre o
+    // fundo da área de plotagem e a linha de rótulos dos meses, só pro
+    // valor da média caber embaixo da linha tracejada sem encostar em nada.
+    var plotH = hasAvg ? 54 : 66;
+    var plotBottom = padTop + plotH;
+    var avgLabelGap = hasAvg ? 22 : 0;
+    var axisY = plotBottom + avgLabelGap + 10;
+    var H = axisY + 4;
+
     var vals = points.map(function(p){return p.y;});
     var min = Math.min.apply(null, vals), max = Math.max.apply(null, vals);
     if(min===max){ min = min - 1; max = max + 1; }
     var stepX = (W-2*padX)/(points.length-1);
     var coords = points.map(function(p,i){
       var x = padX + i*stepX;
-      var y = H-padBottom - ((p.y-min)/(max-min))*(H-padTop-padBottom);
+      var y = plotBottom - ((p.y-min)/(max-min))*(plotBottom-padTop);
       return {x:x,y:y};
     });
     var path = coords.map(function(c,i){ return (i===0?"M ":"L ")+c.x+" "+c.y; }).join(" ");
@@ -1721,16 +1735,19 @@
       return '<text x="'+coords[i].x+'" y="'+ly+'" font-size="9.5" font-weight="600" fill="'+color+'" text-anchor="middle">'+escapeHtml(p.value)+'</text>';
     }).join("");
     var labels = points.map(function(p,i){
-      return '<text x="'+coords[i].x+'" y="'+(H-1)+'" font-size="9" fill="var(--ink-soft)" text-anchor="middle">'+p.label+'</text>';
+      return '<text x="'+coords[i].x+'" y="'+axisY+'" font-size="9" fill="var(--ink-soft)" text-anchor="middle">'+p.label+'</text>';
     }).join("");
 
     // Linha de média de cada quadrimestre (Jan–Abr / Mai–Ago / Set–Dez):
     // agrupa os pontos exibidos que pertencem ao mesmo quadrimestre (cada
-    // ponto já traz p.quadKey/p.quadLabel) e desenha uma linha horizontal
-    // tracejada na altura da média DESSES pontos, com o valor ao lado.
+    // ponto já traz p.quadKey/p.quadLabel), desenha uma linha horizontal
+    // tracejada na altura da média DESSES pontos e escreve o valor logo
+    // ABAIXO da linha (dentro da faixa reservada em avgLabelGap, longe da
+    // linha de dados, dos rótulos de valor e da linha de meses). A cor
+    // (linha + texto + fundo do rótulo) segue a classificação da média
+    // (Regular/Suficiente/Bom/Ótimo), igual às outras faixas do painel.
     var avgSvg = '';
-    if(opts.quadAvg){
-      var avgColor = '#7A5A2E';
+    if(hasAvg){
       var groups = [];
       points.forEach(function(p,i){
         var last = groups[groups.length-1];
@@ -1740,20 +1757,25 @@
       avgSvg = groups.map(function(g){
         var ys = g.idx.map(function(i){ return points[i].y; });
         var avg = ys.reduce(function(a,b){ return a+b; }, 0)/ys.length;
-        var avgY = H-padBottom - ((avg-min)/(max-min))*(H-padTop-padBottom);
+        var avgY = plotBottom - ((avg-min)/(max-min))*(plotBottom-padTop);
         var x1 = coords[g.idx[0]].x, x2 = coords[g.idx[g.idx.length-1]].x;
         if(g.idx.length===1){ x1 -= 12; x2 += 12; }
         x1 = Math.max(padX-4, x1); x2 = Math.min(W-padX+4, x2);
         var midX = (x1+x2)/2;
-        var textY = avgY > 16 ? avgY-5 : avgY+11;
-        var valTxt = fmtDec(avg,2)+(opts.suffix||'');
-        return '<line x1="'+x1+'" y1="'+avgY+'" x2="'+x2+'" y2="'+avgY+'" stroke="'+avgColor+'" stroke-width="1.3" stroke-dasharray="3 3" opacity="0.85"/>'
-          + '<text x="'+midX+'" y="'+textY+'" font-size="8" font-weight="600" fill="'+avgColor+'" text-anchor="middle">'+g.label+': '+valTxt+'</text>';
+        var textY = Math.min(avgY + 16, plotBottom + avgLabelGap - 4);
+        var faixa = opts.classify ? opts.classify(avg) : null;
+        var tone = CLASS_COLOR[faixa] || '#7A5A2E';
+        var valTxt = g.label+': '+fmtDec(avg,2)+(opts.suffix||'');
+        var chipW = Math.max(34, valTxt.length*4.6+8);
+        var chip = '<rect x="'+(midX-chipW/2)+'" y="'+(textY-9)+'" width="'+chipW+'" height="12" rx="3" fill="var(--surface)" opacity="0.92"/>';
+        return '<line x1="'+x1+'" y1="'+avgY+'" x2="'+x2+'" y2="'+avgY+'" stroke="'+tone+'" stroke-width="1.3" stroke-dasharray="3 3" opacity="0.9"/>'
+          + chip
+          + '<text x="'+midX+'" y="'+textY+'" font-size="8" font-weight="700" fill="'+tone+'" text-anchor="middle">'+escapeHtml(valTxt)+'</text>';
       }).join('');
     }
 
     return '<svg class="spark-svg" viewBox="0 0 '+W+' '+(H+14)+'">'
-      + avgSvg + '<path d="'+path+'" fill="none" stroke="'+color+'" stroke-width="2"/>' + dots + valueLabels + labels + '</svg>';
+      + '<path d="'+path+'" fill="none" stroke="'+color+'" stroke-width="2"/>' + dots + valueLabels + avgSvg + labels + '</svg>';
   }
 
   // ---------- Tabs ----------
@@ -1868,12 +1890,12 @@
     var trend = '';
     trend += '<div class="card trend-card"><h4>M1 mês a mês</h4>'
       + '<p class="cur">Mês de referência ('+refMonthLabel()+'): '+fmtDec(d.m1,2)+'</p>'
-      + sparkline(serieTendencia.map(function(p){ return {y:p.m1, label:monthShortLabel(p.mes), value:fmtDec(p.m1,2), quadKey:quadKeyOfDate(p.mes), quadLabel:quadCode(p.mes)}; }).filter(function(p){return p.y!=null;}), '#153F35', {quadAvg:true})
+      + sparkline(serieTendencia.map(function(p){ return {y:p.m1, label:monthShortLabel(p.mes), value:fmtDec(p.m1,2), quadKey:quadKeyOfDate(p.mes), quadLabel:quadCode(p.mes)}; }).filter(function(p){return p.y!=null;}), '#153F35', {quadAvg:true, classify:classificarM1})
       + '<p class="footnote">Cada ponto já é a janela de '+JANELA_MESES+' meses terminando naquele mês. Linha tracejada = média do quadrimestre no período exibido.</p>'
       + '</div>';
     trend += '<div class="card trend-card"><h4>M2 (%) mês a mês</h4>'
       + '<p class="cur">Mês de referência ('+refMonthLabel()+'): '+fmtDec(d.m2,2)+'%</p>'
-      + sparkline(serieTendencia.map(function(p){ return {y:p.m2, label:monthShortLabel(p.mes), value:fmtDec(p.m2,2)+'%', quadKey:quadKeyOfDate(p.mes), quadLabel:quadCode(p.mes)}; }).filter(function(p){return p.y!=null;}), '#C68A3D', {quadAvg:true, suffix:'%'})
+      + sparkline(serieTendencia.map(function(p){ return {y:p.m2, label:monthShortLabel(p.mes), value:fmtDec(p.m2,2)+'%', quadKey:quadKeyOfDate(p.mes), quadLabel:quadCode(p.mes)}; }).filter(function(p){return p.y!=null;}), '#C68A3D', {quadAvg:true, suffix:'%', classify:classificarM2})
       + '<p class="footnote">Cada ponto já é a janela de '+JANELA_MESES+' meses terminando naquele mês. Linha tracejada = média do quadrimestre no período exibido.</p>'
       + '</div>';
     document.getElementById('trendRow').innerHTML = trend;
