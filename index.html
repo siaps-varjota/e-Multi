@@ -86,7 +86,7 @@
 
   .filter-bar-outer{max-width:1220px;margin:20px auto 0;padding:0 40px;}
   .ref-month-row{
-    display:inline-flex;align-items:flex-start;gap:16px;flex-wrap:wrap;
+    display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;width:100%;
     background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
     padding:14px 18px;
   }
@@ -95,7 +95,8 @@
   .ref-window-label b{color:var(--ink);font-weight:600;}
 
   /* ---------- Multi-select arredondado (Equipe / Quadrimestre / Mês) ---------- */
-  .ms-field{display:flex;flex-direction:column;gap:5px;}
+  .ms-field{display:flex;flex-direction:column;gap:5px;flex:1 1 170px;}
+  .ms-field .ms-wrap{width:100%;}
   .ms-field.ms-field-window{flex:1 1 180px;min-width:180px;max-width:260px;}
   .ms-field > label{font-size:13px;font-weight:600;color:var(--ink-soft);}
   .ms-field > label.ms-hidden-label{visibility:hidden;}
