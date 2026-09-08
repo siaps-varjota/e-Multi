@@ -85,20 +85,68 @@
   .tab.active{background:var(--header-bg);border-color:var(--header-bg);color:#fff;}
 
   .ref-month-row{
-    display:flex;align-items:center;gap:14px;flex-wrap:wrap;
+    display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;
     background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);
     padding:14px 18px;margin:20px 40px 0;max-width:1220px;margin-left:auto;margin-right:auto;
   }
   .ref-month-row.hidden{display:none;}
-  .ref-month-row label{font-size:13px;font-weight:600;color:var(--ink-soft);}
-  .ref-month-row select{
-    padding:8px 12px;border:1px solid var(--line);border-radius:6px;
-    font-family:'Inter',sans-serif;font-size:13.5px;background:var(--paper);color:var(--ink);
-    font-weight:500;
-  }
-  .ref-month-row select:focus{outline:none;border-color:var(--header-bg);}
-  .ref-window-label{font-size:12.5px;color:var(--ink-soft);}
+  .ref-window-label{font-size:12.5px;color:var(--ink-soft);white-space:normal;word-break:break-word;line-height:1.4;}
   .ref-window-label b{color:var(--ink);font-weight:600;}
+
+  /* ---------- Multi-select arredondado (Equipe / Quadrimestre / Mês) ---------- */
+  .ms-field{display:flex;flex-direction:column;gap:5px;}
+  .ms-field.ms-field-window{flex:1 1 180px;min-width:180px;max-width:260px;}
+  .ms-field > label{font-size:13px;font-weight:600;color:var(--ink-soft);}
+  .ms-field > label.ms-hidden-label{visibility:hidden;}
+  .ms-wrap{position:relative;min-width:170px;}
+  .ms-btn{
+    width:100%;min-height:38px;padding:8px 12px;border:1px solid var(--line);border-radius:12px;
+    background:var(--paper);font-family:'Inter',sans-serif;font-size:13.5px;font-weight:500;color:var(--ink);
+    display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;text-align:left;
+    transition:border-color .15s ease,background .15s ease;
+  }
+  .ms-btn:hover{background:var(--surface);}
+  .ms-wrap.ms-has-value .ms-btn{border-color:var(--header-bg);}
+  .ms-btn-text{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .ms-wrap:not(.ms-has-value) .ms-btn-text{color:var(--ink-soft);}
+  .ms-chevron{width:15px;height:15px;flex:0 0 auto;transition:transform .15s ease;color:var(--ink-soft);}
+  .ms-btn.ms-open .ms-chevron{transform:rotate(180deg);}
+  .ms-panel{
+    position:absolute;z-index:60;top:calc(100% + 4px);left:0;min-width:100%;width:max-content;max-width:280px;
+    background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 30px rgba(21,63,53,.14);
+    overflow:hidden;
+  }
+  .ms-search-wrap{padding:8px;border-bottom:1px solid var(--line);}
+  .ms-search{
+    width:100%;padding:7px 10px;border:1px solid var(--line);border-radius:9px;box-sizing:border-box;
+    font-family:'Inter',sans-serif;font-size:13px;background:var(--paper);color:var(--ink);
+  }
+  .ms-search:focus{outline:none;border-color:var(--header-bg);}
+  .ms-action{
+    display:block;width:100%;padding:9px 14px;border:none;background:none;border-bottom:1px solid var(--line);
+    font-family:'Inter',sans-serif;font-size:12.5px;font-weight:600;color:var(--header-bg);text-align:left;cursor:pointer;
+  }
+  .ms-action:hover{background:var(--paper);}
+  .ms-list{max-height:220px;overflow:auto;}
+  .ms-option{
+    display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;padding:9px 14px;
+    border:none;background:none;font-family:'Inter',sans-serif;font-size:13px;color:var(--ink);text-align:left;cursor:pointer;
+  }
+  .ms-option:hover{background:var(--paper);}
+  .ms-option-checked{background:rgba(21,63,53,.07);font-weight:600;}
+  .ms-option-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .ms-check{width:15px;height:15px;flex:0 0 auto;color:var(--header-bg);}
+  .ms-empty{padding:12px 14px;font-size:12.5px;color:var(--ink-soft);}
+  .ms-tags{display:flex;flex-wrap:wrap;gap:5px;margin-top:6px;}
+  .ms-tag{
+    display:inline-flex;align-items:center;gap:5px;padding:3px 8px 3px 10px;border-radius:999px;
+    background:rgba(21,63,53,.08);color:var(--header-bg);font-size:11.5px;font-weight:600;
+  }
+  .ms-tag button{
+    border:none;background:none;padding:2px;border-radius:999px;cursor:pointer;color:var(--header-bg);
+    display:flex;align-items:center;
+  }
+  .ms-tag button:hover{background:rgba(21,63,53,.15);}
 
   .main{padding:24px 40px 60px;max-width:1220px;margin:0 auto;}
   .tab-panel{display:none;}
@@ -304,13 +352,22 @@
 </nav>
 
 <div class="ref-month-row" id="filterBar">
-  <label for="equipeSelect">Equipe</label>
-  <select id="equipeSelect"></select>
-  <label for="quadSelect">Quadrimestre</label>
-  <select id="quadSelect"></select>
-  <label for="refMonthSelect">Mês (opcional)</label>
-  <select id="refMonthSelect"></select>
-  <span class="ref-window-label" id="refWindowLabel"></span>
+  <div class="ms-field">
+    <label>Equipe</label>
+    <div class="ms-wrap" id="equipeMs"></div>
+  </div>
+  <div class="ms-field">
+    <label>Quadrimestre</label>
+    <div class="ms-wrap" id="quadMs"></div>
+  </div>
+  <div class="ms-field">
+    <label>Mês (opcional)</label>
+    <div class="ms-wrap" id="mesMs"></div>
+  </div>
+  <div class="ms-field ms-field-window">
+    <label class="ms-hidden-label" aria-hidden="true">Período</label>
+    <span class="ref-window-label" id="refWindowLabel"></span>
+  </div>
 </div>
 
 <main class="main">
@@ -409,10 +466,10 @@
   // Quadrimestres fixos do ano civil: Q1 Jan–Abr, Q2 Mai–Ago, Q3 Set–Dez.
   var QUAD_LABELS = ['Jan–Abr (Q1)', 'Mai–Ago (Q2)', 'Set–Dez (Q3)'];
   // Quadrimestre selecionado (ano + índice 0/1/2). Começa no quadrimestre
-  // que contém o mês atual; muda quando o usuário mexe no #quadSelect.
+  // que contém o mês atual; muda quando o usuário mexe no filtro de Quadrimestre.
   var quadSelecionado = quadrimestreDoMes(new Date());
   // Mês específico (dentro do quadrimestre) escolhido pelo usuário no
-  // #refMonthSelect. null = vazio por padrão => usa a MÉDIA dos 4 meses
+  // filtro de Mês. null = vazio por padrão => usa a MÉDIA dos 4 meses
   // do quadrimestre selecionado. Se o usuário escolher um mês, os
   // indicadores passam a ser só daquele mês (sem média).
   var refMonthDate = null;
@@ -457,10 +514,13 @@
     {key:"centro", label:"EMULTI Centro", suffix:"Centro", matchKeyword:"CENTRO"},
     {key:"croata", label:"EMULTI Croatá", suffix:"Croatá", matchKeyword:"CROATA"}
   ];
-  var currentEquipe = EQUIPES[0];
+  // Agora suporta seleção múltipla: quando mais de uma equipe está
+  // marcada, as linhas de AMBAS entram no cálculo (resultado combinado/
+  // somado das equipes selecionadas). Sempre fica pelo menos 1 marcada.
+  var currentEquipes = [EQUIPES[0]];
 
   function suffixedName(baseName){
-    return baseName + " — " + currentEquipe.suffix;
+    return baseName + " — " + currentEquipes.map(function(e){ return e.suffix; }).join('+');
   }
   function displayListName(name){
     // remove o sufixo " — Centro"/" — Croatá" só pra exibição (o título da
@@ -514,53 +574,66 @@
     }
     return pontos;
   }
-  // Popula o #quadSelect com quadrimestres do ano atual e dos 2 anteriores
-  // (mais recente primeiro), e o #refMonthSelect com os 4 meses do
-  // quadrimestre atualmente selecionado + uma opção vazia ("média").
+  // Popula o #quadMs com quadrimestres do ano atual e dos 2 anteriores
+  // (mais recente primeiro), e o #mesMs com os 4 meses do quadrimestre
+  // atualmente selecionado + uma opção vazia ("média"). Os dois são
+  // widgets de valor único (multi:false) com o mesmo visual arredondado
+  // do seletor de Equipe.
+  var quadMs = null, mesMs = null;
   function populateQuadSelect(){
-    var sel = document.getElementById('quadSelect');
-    if(!sel || sel.options.length) return; // já populado (não recria a cada render)
+    var container = document.getElementById('quadMs');
+    if(!container || quadMs) return; // já populado (não recria a cada render)
+    quadMs = createMultiSelect(container, {
+      placeholder: 'Selecione', multi: false, search: false,
+      onChange: function(keys){
+        var parts = keys[0].split('-');
+        quadSelecionado = {ano: +parts[0], qIndex: +parts[1]};
+        refMonthDate = null; // volta a mostrar a média do quadrimestre escolhido
+        populateMonthSelectForQuad();
+        aplicarMesReferencia(false);
+      }
+    });
     var anoAtual = new Date().getFullYear();
     var opts = [];
     for(var ano=anoAtual; ano>=anoAtual-2; ano--){
       for(var q=2; q>=0; q--){
         if(ano===anoAtual && q > quadSelecionado.qIndex) continue; // não mostra quadrimestre futuro do ano atual
-        opts.push('<option value="'+ano+'-'+q+'">'+QUAD_LABELS[q]+'/'+ano+'</option>');
+        opts.push({value: ano+'-'+q, label: QUAD_LABELS[q]+'/'+ano});
       }
     }
-    sel.innerHTML = opts.join('');
-    sel.value = quadSelecionado.ano+'-'+quadSelecionado.qIndex;
-    sel.addEventListener('change', function(){
-      var parts = sel.value.split('-');
-      quadSelecionado = {ano: +parts[0], qIndex: +parts[1]};
-      refMonthDate = null; // volta a mostrar a média do quadrimestre escolhido
-      populateMonthSelectForQuad();
-      aplicarMesReferencia(false);
-    });
+    quadMs.setOptions(opts);
+    quadMs.setSelected([quadSelecionado.ano+'-'+quadSelecionado.qIndex]);
     populateMonthSelectForQuad();
   }
-  // Preenche #refMonthSelect só com os 4 meses do quadrimestre selecionado
-  // (mais a opção vazia "média do quadrimestre", que fica selecionada por
-  // padrão). Refeito toda vez que o quadrimestre muda.
+  // Preenche #mesMs só com os 4 meses do quadrimestre selecionado (mais a
+  // opção vazia "média do quadrimestre", selecionada por padrão). As
+  // opções são refeitas toda vez que o quadrimestre muda; o widget em si
+  // (mesMs) é criado uma única vez.
   function populateMonthSelectForQuad(){
-    var sel = document.getElementById('refMonthSelect');
-    if(!sel) return;
+    var container = document.getElementById('mesMs');
+    if(!container) return;
+    if(!mesMs){
+      mesMs = createMultiSelect(container, {
+        placeholder: 'Média do quadrimestre', multi: false, search: false,
+        onChange: function(keys){
+          var v = keys[0] || '';
+          if(!v){
+            refMonthDate = null;
+          } else {
+            var parts = v.split('-');
+            refMonthDate = new Date(+parts[0], +parts[1]-1, 1);
+          }
+          aplicarMesReferencia(false);
+        }
+      });
+    }
     var meses = mesesDoQuadrimestre(quadSelecionado.ano, quadSelecionado.qIndex);
-    var opts = ['<option value="">Média do quadrimestre</option>'];
+    var opts = [{value:'', label:'Média do quadrimestre'}];
     meses.forEach(function(d){
-      opts.push('<option value="'+monthOptionValue(d)+'">'+monthOptionLabel(d)+'</option>');
+      opts.push({value: monthOptionValue(d), label: monthOptionLabel(d)});
     });
-    sel.innerHTML = opts.join('');
-    sel.value = refMonthDate ? monthOptionValue(refMonthDate) : '';
-    sel.onchange = function(){
-      if(!sel.value){
-        refMonthDate = null;
-      } else {
-        var parts = sel.value.split('-');
-        refMonthDate = new Date(+parts[0], +parts[1]-1, 1);
-      }
-      aplicarMesReferencia(false);
-    };
+    mesMs.setOptions(opts);
+    mesMs.setSelected([refMonthDate ? monthOptionValue(refMonthDate) : '']);
   }
   // Combina os indicadores de vários meses fazendo a MÉDIA de M1 e M2 —
   // é assim que o quadrimestre vira "a média dos meses do quadrimestre".
@@ -609,7 +682,7 @@
     var pessoasAtendidasRows = pessoasLista.map(function(p){ return [p.nome, p.at, p.part, p.at+p.part]; });
 
     return {
-      equipe: currentEquipe.label,
+      equipe: currentEquipes.map(function(e){ return e.label; }).join(' + '),
       data: {
         atendimentosIndividuais: soma('atendimentosIndividuais'),
         participacoesColetivas: soma('participacoesColetivas'),
@@ -687,6 +760,142 @@
   function pillHex(c){ return CLASS_PILL_HEX[c] || "#9AA69E"; }
   function arcHex(c){ return CLASS_ARC_HEX[c] || "#9AA69E"; }
 
+  // ---------- Multi-select arredondado (Equipe / Quadrimestre / Mês) ----------
+  // Componente genérico: em modo multi:true permite marcar vários valores
+  // (com "Selecionar tudo"/"Limpar" e tags abaixo do botão); em modo
+  // multi:false funciona como um "select" de valor único, mas com o
+  // mesmo visual arredondado — clicar numa opção troca a seleção e fecha.
+  function createMultiSelect(container, cfg){
+    cfg = cfg || {};
+    var state = {options: [], selected: [], isOpen: false, searchTerm: ''};
+    container.innerHTML =
+        '<button type="button" class="ms-btn">'
+      +   '<span class="ms-btn-text"></span>'
+      +   '<svg class="ms-chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 9l6 6 6-6"/></svg>'
+      + '</button>'
+      + '<div class="ms-panel" style="display:none;"></div>'
+      + (cfg.showTags ? '<div class="ms-tags"></div>' : '');
+    var btn = container.querySelector('.ms-btn');
+    var btnText = container.querySelector('.ms-btn-text');
+    var panel = container.querySelector('.ms-panel');
+    var tagsBox = container.querySelector('.ms-tags');
+
+    function labelFor(value){
+      var found = state.options.filter(function(o){ return o.value===value; })[0];
+      return found ? found.label : value;
+    }
+
+    function renderTags(){
+      if(!tagsBox) return;
+      if(!cfg.multi || state.selected.length<2){ tagsBox.innerHTML=''; return; }
+      tagsBox.innerHTML = state.selected.map(function(v){
+        return '<span class="ms-tag" data-value="'+escapeHtml(v)+'">'+escapeHtml(labelFor(v))
+          + '<button type="button" data-remove="'+escapeHtml(v)+'">'
+          +   '<svg viewBox="0 0 24 24" width="11" height="11" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6L6 18M6 6l12 12"/></svg>'
+          + '</button></span>';
+      }).join('');
+      tagsBox.querySelectorAll('[data-remove]').forEach(function(b){
+        b.addEventListener('click', function(e){
+          e.stopPropagation();
+          setSelected(state.selected.filter(function(v){ return v!==b.getAttribute('data-remove'); }));
+        });
+      });
+    }
+
+    function render(){
+      var selLabels = state.selected.map(labelFor);
+      btnText.textContent = selLabels.length===0 ? (cfg.placeholder || 'Todos')
+        : (cfg.multi && selLabels.length>1 ? selLabels.length+' selecionados' : selLabels.join(', '));
+      container.classList.toggle('ms-has-value', selLabels.length>0);
+      btn.classList.toggle('ms-open', state.isOpen);
+      renderTags();
+
+      if(!state.isOpen){ panel.style.display='none'; panel.innerHTML=''; return; }
+      panel.style.display='block';
+
+      var term = state.searchTerm.toLowerCase();
+      var filtered = !term ? state.options : state.options.filter(function(o){
+        return o.label.toLowerCase().indexOf(term) >= 0;
+      });
+
+      var html = '';
+      if(cfg.search){
+        html += '<div class="ms-search-wrap"><input type="text" class="ms-search" placeholder="Buscar…" value="'+escapeHtml(state.searchTerm)+'"></div>';
+      }
+      if(cfg.multi){
+        html += state.selected.length>0
+          ? '<button type="button" class="ms-action" data-action="clear">Limpar seleção</button>'
+          : '<button type="button" class="ms-action" data-action="all">Selecionar tudo</button>';
+      }
+      html += '<div class="ms-list">';
+      html += filtered.length===0
+        ? '<div class="ms-empty">Nenhum resultado encontrado</div>'
+        : filtered.map(function(o){
+            var checked = state.selected.indexOf(o.value)>=0;
+            return '<button type="button" class="ms-option'+(checked?' ms-option-checked':'')+'" data-value="'+escapeHtml(o.value)+'">'
+              + '<span class="ms-option-label">'+escapeHtml(o.label)+'</span>'
+              + (checked ? '<svg class="ms-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 6L9 17l-5-5"/></svg>' : '')
+              + '</button>';
+          }).join('');
+      html += '</div>';
+      panel.innerHTML = html;
+
+      var searchInput = panel.querySelector('.ms-search');
+      if(searchInput){
+        searchInput.focus();
+        var pos = state.searchTerm.length;
+        searchInput.setSelectionRange(pos,pos);
+        searchInput.addEventListener('input', function(){ state.searchTerm = searchInput.value; render(); });
+      }
+      var actionBtn = panel.querySelector('.ms-action');
+      if(actionBtn){
+        actionBtn.addEventListener('click', function(){
+          if(actionBtn.getAttribute('data-action')==='clear') setSelected([]);
+          else setSelected(filtered.map(function(o){ return o.value; }));
+        });
+      }
+      panel.querySelectorAll('.ms-option').forEach(function(elOpt){
+        elOpt.addEventListener('click', function(){
+          var v = elOpt.getAttribute('data-value');
+          if(cfg.multi){
+            var next = state.selected.indexOf(v)>=0
+              ? state.selected.filter(function(x){ return x!==v; })
+              : state.selected.concat([v]);
+            setSelected(next);
+          } else {
+            state.isOpen = false;
+            setSelected([v]);
+          }
+        });
+      });
+    }
+
+    function setSelected(values, silent){
+      state.selected = values;
+      render();
+      if(!silent && cfg.onChange) cfg.onChange(state.selected.slice());
+    }
+
+    btn.addEventListener('click', function(){
+      state.isOpen = !state.isOpen;
+      state.searchTerm = '';
+      render();
+    });
+    document.addEventListener('mousedown', function(e){
+      if(state.isOpen && !container.contains(e.target)){
+        state.isOpen = false;
+        state.searchTerm = '';
+        render();
+      }
+    });
+
+    return {
+      setOptions: function(opts){ state.options = opts; render(); },
+      setSelected: function(values){ setSelected(values, true); },
+      getSelected: function(){ return state.selected.slice(); }
+    };
+  }
+
   // ---------- Parsing ----------
   function sheetToRows(ws){
     if(Array.isArray(ws)) return ws; // já é uma matriz de linhas (vindo do parseCsv)
@@ -710,14 +919,15 @@
     }
     return -1;
   }
-  function filtrarLinhasPorEquipe(matrix, equipe){
+  function filtrarLinhasPorEquipe(matrix, equipes){
     if(!matrix || !matrix.length) return matrix || [];
     var header = matrix[0];
     var idx = equipeColIndex(header);
     if(idx < 0) return matrix; // aba sem coluna de equipe: não filtra
-    var keyword = normalizeText(equipe.matchKeyword || equipe.suffix);
+    var keywords = equipes.map(function(eq){ return normalizeText(eq.matchKeyword || eq.suffix); });
     var linhas = matrix.slice(1).filter(function(r){
-      return normalizeText(r[idx]).indexOf(keyword) !== -1;
+      var valor = normalizeText(r[idx]);
+      return keywords.some(function(kw){ return valor.indexOf(kw) !== -1; });
     });
     return [header].concat(linhas);
   }
@@ -932,7 +1142,7 @@
     });
 
     return {
-      equipe: currentEquipe.label,
+      equipe: currentEquipes.map(function(e){ return e.label; }).join(' + '),
       data: {
         atendimentosIndividuais: atendimentosIndividuais,
         participacoesColetivas: participacoesColetivas,
@@ -1577,10 +1787,8 @@
 
     var serie = calcularSerieTendencia(latestWb, anchorMonthDate(), TREND_MESES);
 
-    var quadSelEl = document.getElementById('quadSelect');
-    if(quadSelEl) quadSelEl.value = quadSelecionado.ano+'-'+quadSelecionado.qIndex;
-    var mesSelEl = document.getElementById('refMonthSelect');
-    if(mesSelEl) mesSelEl.value = refMonthDate ? monthOptionValue(refMonthDate) : '';
+    if(quadMs) quadMs.setSelected([quadSelecionado.ano+'-'+quadSelecionado.qIndex]);
+    if(mesMs) mesMs.setSelected([refMonthDate ? monthOptionValue(refMonthDate) : '']);
     var winEl = document.getElementById('refWindowLabel');
     if(winEl){
       winEl.innerHTML = refMonthDate
@@ -1658,7 +1866,7 @@
           // chave, sem precisar saber que a aba é compartilhada entre
           // equipes. Note: SEM filtro de período aqui — cada mês de
           // referência filtra por data na hora, em aplicarMesReferencia().
-          var filtradas = filtrarLinhasPorEquipe(parsedRows, currentEquipe);
+          var filtradas = filtrarLinhasPorEquipe(parsedRows, currentEquipes);
           var key = suffixedName(r.name);
           wb.Sheets[key] = filtradas;
           wb.SheetNames.push(key);
@@ -1691,17 +1899,24 @@
   refreshBtn.addEventListener('click', fetchAndLoad);
 
   function renderEquipeSwitcher(){
-    var el = document.getElementById('equipeSelect');
-    el.innerHTML = EQUIPES.map(function(eq){
-      return '<option value="'+eq.key+'"'+(eq.key===currentEquipe.key?' selected':'')+'>'+escapeHtml(eq.label)+'</option>';
-    }).join('');
-    el.onchange = function(){
-      var key = el.value;
-      if(key === currentEquipe.key) return;
-      currentEquipe = EQUIPES.filter(function(eq){ return eq.key === key; })[0];
-      document.getElementById('statusState').style.display = '';
-      fetchAndLoad();
-    };
+    var equipeMs = createMultiSelect(document.getElementById('equipeMs'), {
+      placeholder: 'Selecione',
+      multi: true,
+      search: false,
+      showTags: true,
+      onChange: function(keys){
+        if(keys.length===0){
+          // sempre precisa ficar pelo menos 1 equipe marcada
+          equipeMs.setSelected(currentEquipes.map(function(e){ return e.key; }));
+          return;
+        }
+        currentEquipes = EQUIPES.filter(function(eq){ return keys.indexOf(eq.key)>=0; });
+        document.getElementById('statusState').style.display = '';
+        fetchAndLoad();
+      }
+    });
+    equipeMs.setOptions(EQUIPES.map(function(eq){ return {value: eq.key, label: eq.label}; }));
+    equipeMs.setSelected(currentEquipes.map(function(e){ return e.key; }));
   }
   renderEquipeSwitcher();
 
