@@ -293,7 +293,7 @@
     font-size:13px;background:var(--surface);color:var(--ink);
   }
   .list-search:focus{outline:none;border-color:var(--header-bg);}
-  .list-filters{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px;}
+  .list-filters{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px;}
   .filter-pair{display:flex;gap:6px;}
   .list-filters select{
     padding:8px 12px;border:1px solid var(--line);border-radius:6px;
@@ -311,7 +311,7 @@
   .data-table tbody td{padding:7px 12px;border-bottom:1px solid var(--line);}
   .data-table tbody tr:hover{background:var(--paper);}
   .list-meta{font-size:12px;color:var(--ink-soft);margin:0 0 8px;}
-  .list-month-filter{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+  .list-month-filter{display:flex;align-items:center;gap:10px;}
   .list-month-filter-label{font-size:12.5px;font-weight:600;color:var(--ink-soft);white-space:nowrap;}
   .list-month-filter .ms-wrap{min-width:200px;max-width:280px;}
   .list-month-filter .ms-panel{max-width:260px;}
@@ -1265,8 +1265,7 @@
           + '<div class="ms-wrap" data-month-filter="'+escapeHtml(name)+'"></div></div>'
         : '';
       body = '<p class="list-meta">'+fmtInt(cached.rows.length)+(cached.rows.length===1?' linha':' linhas')+'</p>'
-        + monthFilterHtml
-        + '<div class="list-filters" data-list-filters="'+escapeHtml(name)+'">'+filterPairsHtml+'</div>'
+        + '<div class="list-filters" data-list-filters="'+escapeHtml(name)+'">'+monthFilterHtml+filterPairsHtml+'</div>'
         + '<input class="list-search" type="text" placeholder="Filtrar nesta lista…" data-filter-key="'+escapeHtml(name)+'">'
         + '<div class="table-wrap"><table class="data-table"><thead>'+theadHtml+'</thead><tbody>'+bodyHtml+'</tbody></table></div>';
     }
