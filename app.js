@@ -290,11 +290,13 @@
         participacoesColetivas: soma('participacoesColetivas'),
         numeradorM1: soma('numeradorM1'),
         denominadorM1: soma('denominadorM1'),
-        // Versões "janela": média do numerador/denominador das 4 janelas
-        // móveis que compõem o m1 acima — só pra legenda do gauge bater
-        // com o valor do ponteiro (ver gaugeRow/gaugeRowM1 mais abaixo).
-        // Composição e Meta do quadrimestre continuam usando os totais
-        // reais do quadrimestre (numeradorM1/denominadorM1 acima).
+        // Versões "janela": média das 4 janelas móveis que compõem o
+        // m1/m2 acima — usadas nos cards de Composição e na legenda do
+        // gauge, pra tudo bater com o valor do ponteiro. Meta do
+        // quadrimestre continua usando os totais reais do quadrimestre
+        // (numeradorM1/denominadorM1 acima), que é progresso de fato.
+        atendimentosIndividuaisJanela: mediaJanela('atendimentosIndividuais'),
+        participacoesColetivasJanela: mediaJanela('participacoesColetivas'),
         numeradorM1Janela: mediaJanela('numeradorM1'),
         denominadorM1Janela: mediaJanela('denominadorM1'),
         m1: m1,
@@ -305,6 +307,8 @@
         reunioesCompartilhadas: soma('reunioesCompartilhadas'),
         denominadorM2: soma('denominadorM2'),
         numeradorM2: soma('numeradorM2'),
+        atividadesCompartilhadasJanela: mediaJanela('atividadesCompartilhadas'),
+        reunioesCompartilhadasJanela: mediaJanela('reunioesCompartilhadas'),
         numeradorM2Janela: mediaJanela('numeradorM2'),
         denominadorM2Janela: mediaJanela('denominadorM2'),
         m2: m2,
@@ -1630,33 +1634,40 @@
 
     var d = record.data;
     // Legenda do gauge (a linha "X atendimentos ÷ Y pessoas" embaixo do
-    // ponteiro) precisa bater com o valor do m1/m2 mostrado — que é
-    // calculado com a janela móvel oficial. Quando existir a versão
-    // "Janela" (média do quadrimestre / vários meses selecionados), usa
-    // ela; num mês único o próprio d.numeradorM1/d.denominadorM1 JÁ é a
-    // janela (ver aplicarMesReferencia), então cai nele direto.
+    // ponteiro) e os cards de Composição precisam bater com o valor do
+    // m1/m2 mostrado — que é calculado com a janela móvel oficial. Quando
+    // existir a versão "Janela" (média do quadrimestre / vários meses
+    // selecionados), usa ela; num mês único o próprio d.numeradorM1/
+    // d.denominadorM1 JÁ é a janela (ver aplicarMesReferencia), então cai
+    // nele direto. Meta do quadrimestre é a única seção que continua nos
+    // totais reais (d.numeradorM1/d.denominadorM1), pra refletir o
+    // progresso de fato dentro do período.
     var numM1Gauge = d.numeradorM1Janela!=null ? d.numeradorM1Janela : d.numeradorM1;
     var denM1Gauge = d.denominadorM1Janela!=null ? d.denominadorM1Janela : d.denominadorM1;
     var numM2Gauge = d.numeradorM2Janela!=null ? d.numeradorM2Janela : d.numeradorM2;
     var denM2Gauge = d.denominadorM2Janela!=null ? d.denominadorM2Janela : d.denominadorM2;
+    var atendIndGauge = d.atendimentosIndividuaisJanela!=null ? d.atendimentosIndividuaisJanela : d.atendimentosIndividuais;
+    var participColGauge = d.participacoesColetivasJanela!=null ? d.participacoesColetivasJanela : d.participacoesColetivas;
+    var atividadesCompGauge = d.atividadesCompartilhadasJanela!=null ? d.atividadesCompartilhadasJanela : d.atividadesCompartilhadas;
+    var reunioesCompGauge = d.reunioesCompartilhadasJanela!=null ? d.reunioesCompartilhadasJanela : d.reunioesCompartilhadas;
 
     // ---- Composição (4 cartões: Numerador/Denominador de M1 e M2) ----
     var numM1Bar = stackbar([
-        {label:'Atendimentos individuais', value:d.atendimentosIndividuais, color:'#153F35'},
-        {label:'Participações coletivas', value:d.participacoesColetivas, color:'#C68A3D'}
-      ], d.numeradorM1);
+        {label:'Atendimentos individuais', value:atendIndGauge, color:'#153F35'},
+        {label:'Participações coletivas', value:participColGauge, color:'#C68A3D'}
+      ], numM1Gauge);
     var denM1Bar = stackbar([
-        {label:'Pessoas atendidas', value:d.denominadorM1, color:'#153F35'}
-      ], d.denominadorM1);
+        {label:'Pessoas atendidas', value:denM1Gauge, color:'#153F35'}
+      ], denM1Gauge);
     var numM2Bar = stackbar([
-        {label:'Atividades coletivas compartilhadas', value:d.atividadesCompartilhadas, color:'#153F35'},
-        {label:'Reuniões compartilhadas', value:d.reunioesCompartilhadas, color:'#C68A3D'}
-      ], d.numeradorM2);
+        {label:'Atividades coletivas compartilhadas', value:atividadesCompGauge, color:'#153F35'},
+        {label:'Reuniões compartilhadas', value:reunioesCompGauge, color:'#C68A3D'}
+      ], numM2Gauge);
     var denM2Bar = stackbar([
-        {label:'Atendimentos individuais (base)', value:(d.denominadorM2!=null && d.numeradorM2!=null) ? d.denominadorM2-d.numeradorM2 : d.atendimentosIndividuais, color:'#CBD3C4'},
-        {label:'Atividades coletivas compartilhadas', value:d.atividadesCompartilhadas, color:'#153F35'},
-        {label:'Reuniões compartilhadas', value:d.reunioesCompartilhadas, color:'#C68A3D'}
-      ], d.denominadorM2);
+        {label:'Atendimentos individuais (base)', value:(denM2Gauge!=null && numM2Gauge!=null) ? denM2Gauge-numM2Gauge : atendIndGauge, color:'#CBD3C4'},
+        {label:'Atividades coletivas compartilhadas', value:atividadesCompGauge, color:'#153F35'},
+        {label:'Reuniões compartilhadas', value:reunioesCompGauge, color:'#C68A3D'}
+      ], denM2Gauge);
 
     document.getElementById('compRow').innerHTML =
         '<div class="card comp-card"><h4>Numerador do M1</h4>'+numM1Bar+'</div>'
