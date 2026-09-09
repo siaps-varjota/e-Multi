@@ -1255,7 +1255,7 @@
   // disponíveis (sem filtro); com meses marcados, só entram atendimentos/
   // participações daqueles meses.
   function pessoasAtendidasParaMeses(monthValues){
-    var pessoasSet = {}; // nome em maiúsculas -> {nome, at, part, datas:[Date,...]}
+    var pessoasSet = {}; // nome em maiúsculas -> {nome, at, part, eventos:[{data,equipe},...]}
     function dentroDoFiltro(d){
       if(!monthValues || !monthValues.length) return true;
       return !!d && monthValues.indexOf(monthOptionValue(d)) >= 0;
@@ -1264,15 +1264,16 @@
     if(atCached){
       var iData = colIndex(atCached.headers, "data_hora");
       var iNome = colIndex(atCached.headers, "nome");
+      var iEquipe = equipeColIndex(atCached.headers);
       if(iData >= 0 && iNome >= 0){
         atCached.rows.forEach(function(r){
           var nome = String(r[iNome]||"").trim();
           var d = parseBRDate(r[iData]);
           if(!nome || !dentroDoFiltro(d)) return;
           var chave = nome.toUpperCase();
-          if(!pessoasSet[chave]) pessoasSet[chave] = {nome:nome, at:0, part:0, datas:[]};
+          if(!pessoasSet[chave]) pessoasSet[chave] = {nome:nome, at:0, part:0, eventos:[]};
           pessoasSet[chave].at++;
-          if(d) pessoasSet[chave].datas.push(d);
+          if(d) pessoasSet[chave].eventos.push({data:d, equipe: iEquipe>=0 ? String(r[iEquipe]||"").trim() : ""});
         });
       }
     }
@@ -1280,35 +1281,41 @@
     if(partCached){
       var iPData = colIndex(partCached.headers, "data");
       var iPNome = colIndex(partCached.headers, "participante");
+      var iPEquipe = equipeColIndex(partCached.headers);
       if(iPData >= 0 && iPNome >= 0){
         partCached.rows.forEach(function(r){
           var nome = String(r[iPNome]||"").trim();
           var d = parseBRDate(r[iPData]);
           if(!nome || nome.indexOf("(sem lista nominal") === 0 || !dentroDoFiltro(d)) return;
           var chave = nome.toUpperCase();
-          if(!pessoasSet[chave]) pessoasSet[chave] = {nome:nome, at:0, part:0, datas:[]};
+          if(!pessoasSet[chave]) pessoasSet[chave] = {nome:nome, at:0, part:0, eventos:[]};
           pessoasSet[chave].part++;
-          if(d) pessoasSet[chave].datas.push(d);
+          if(d) pessoasSet[chave].eventos.push({data:d, equipe: iPEquipe>=0 ? String(r[iPEquipe]||"").trim() : ""});
         });
       }
     }
     var pessoasLista = Object.keys(pessoasSet).map(function(k){ return pessoasSet[k]; })
       .sort(function(a,b){ return a.nome.localeCompare(b.nome,'pt-BR'); });
-    // Ordena as datas de cada pessoa em ordem cronológica e descobre o
-    // maior número de datas entre todas as pessoas, pra saber quantas
-    // colunas "Data N" a tabela precisa ter (colunas sobrando ficam "—").
-    var maxDatas = 0;
+    // Ordena os eventos de cada pessoa em ordem cronológica e descobre o
+    // maior número de eventos entre todas as pessoas, pra saber quantos
+    // pares de colunas "Data N"/"Equipe N" a tabela precisa ter (colunas
+    // sobrando ficam "—").
+    var maxEventos = 0;
     pessoasLista.forEach(function(p){
-      p.datas.sort(function(a,b){ return a-b; });
-      if(p.datas.length > maxDatas) maxDatas = p.datas.length;
+      p.eventos.sort(function(a,b){ return a.data-b.data; });
+      if(p.eventos.length > maxEventos) maxEventos = p.eventos.length;
     });
-    var dataHeaders = [];
-    for(var i=1;i<=maxDatas;i++){ dataHeaders.push("Data "+i); }
+    var eventoHeaders = [];
+    for(var i=1;i<=maxEventos;i++){ eventoHeaders.push("Data "+i, "Equipe "+i); }
     return {
-      headers: ["Nome","Atendimentos","Participantes Ativ. Coletiva","Total"].concat(dataHeaders),
+      headers: ["Nome","Atendimentos","Participantes Ativ. Coletiva","Total"].concat(eventoHeaders),
       rows: pessoasLista.map(function(p){
         var row = [p.nome, p.at, p.part, p.at+p.part];
-        for(var i=0;i<maxDatas;i++){ row.push(p.datas[i] ? fmtBRDate(p.datas[i]) : "—"); }
+        for(var i=0;i<maxEventos;i++){
+          var ev = p.eventos[i];
+          row.push(ev ? fmtBRDate(ev.data) : "—");
+          row.push(ev && ev.equipe ? ev.equipe : "—");
+        }
         return row;
       })
     };
