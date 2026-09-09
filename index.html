@@ -259,6 +259,14 @@
   .trend-card h4{font-size:14.5px;font-weight:500;margin:0 0 4px;}
   .trend-card .cur{font-size:12px;color:var(--ink-soft);margin:0 0 10px;}
   .spark-svg{width:100%;height:auto;}
+  .tp-point{cursor:pointer;}
+  .tp-point .tp-val,.tp-point .tp-dot,.tp-point .tp-axis{transition:opacity .12s ease;}
+  .trend-interactive.tp-hover-active .tp-point .tp-val{opacity:0;}
+  .trend-interactive.tp-hover-active .tp-point .tp-dot{opacity:0.28;}
+  .trend-interactive.tp-hover-active .tp-point .tp-axis{opacity:0.4;}
+  .trend-interactive.tp-hover-active .tp-point.tp-active .tp-val{opacity:1;}
+  .trend-interactive.tp-hover-active .tp-point.tp-active .tp-dot{opacity:1;r:4.2;}
+  .trend-interactive.tp-hover-active .tp-point.tp-active .tp-axis{opacity:1;font-weight:700;fill:var(--ink);}
 
   .history-head{display:flex;justify-content:space-between;align-items:center;margin:8px 0 12px;}
   .history-head .clear-history{background:none;border:none;color:var(--pill-regular);font-size:12.5px;text-decoration:underline;cursor:pointer;padding:0;}
@@ -1797,6 +1805,53 @@
       + avgLineSvg + '</svg>';
   }
 
+  // ---------- Interatividade da aba Tendência ----------
+  // Ao passar o mouse (ou clicar/tocar, no celular) em cima de um ponto de
+  // qualquer um dos dois gráficos (M1 ou M2), destaca em AMBOS os
+  // containers só o ponto daquele mês: apaga (opacidade 0) o número dos
+  // demais pontos e deixa o ponto/rótulo dos outros meses esmaecido, nos
+  // dois gráficos ao mesmo tempo — permitindo comparar M1 e M2 do mesmo
+  // mês lado a lado. Clique/toque "fixa" o destaque (pra quem não tem
+  // hover); clicar de novo no mesmo ponto, ou fora dos gráficos, desfaz.
+  function setupTrendInteractivity(){
+    var svgs = document.querySelectorAll('.trend-interactive');
+    if(!svgs.length) return;
+    var pinnedMonth = null;
+
+    function applyHighlight(month){
+      svgs.forEach(function(svg){
+        svg.classList.toggle('tp-hover-active', !!month);
+        svg.querySelectorAll('.tp-point').forEach(function(pt){
+          pt.classList.toggle('tp-active', !!month && pt.getAttribute('data-month') === month);
+        });
+      });
+    }
+
+    svgs.forEach(function(svg){
+      svg.querySelectorAll('.tp-point').forEach(function(pt){
+        var month = pt.getAttribute('data-month');
+        pt.addEventListener('mouseenter', function(){
+          if(!pinnedMonth) applyHighlight(month);
+        });
+        pt.addEventListener('mouseleave', function(){
+          if(!pinnedMonth) applyHighlight(null);
+        });
+        pt.addEventListener('click', function(e){
+          e.stopPropagation();
+          pinnedMonth = (pinnedMonth === month) ? null : month;
+          applyHighlight(pinnedMonth);
+        });
+      });
+    });
+
+    document.addEventListener('click', function(){
+      if(pinnedMonth){
+        pinnedMonth = null;
+        applyHighlight(null);
+      }
+    });
+  }
+
   // ---------- Tabs ----------
   var FILTER_BAR_TABS = {geral:true, m1:true, m2:true, tendencia:true};
   document.querySelectorAll('.tab').forEach(function(btn){
@@ -1918,6 +1973,7 @@
       + '<p class="footnote">Cada ponto já é a janela de '+JANELA_MESES+' meses terminando naquele mês. Linha tracejada = média do quadrimestre no período exibido.</p>'
       + '</div>';
     document.getElementById('trendRow').innerHTML = trend;
+    setupTrendInteractivity();
 
     var notesList = document.getElementById('notesList');
     if(record.notes && record.notes.length){
