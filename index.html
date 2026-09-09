@@ -1728,11 +1728,19 @@
       return {x:x,y:y};
     });
     var path = coords.map(function(c,i){ return (i===0?"M ":"L ")+c.x+" "+c.y; }).join(" ");
-    var dots = coords.map(function(c){ return '<circle cx="'+c.x+'" cy="'+c.y+'" r="3.2" fill="'+color+'"/>'; }).join("");
+    // Pontos e rótulo numérico de cada mês: coloridos pela classificação
+    // (Regular/Suficiente/Bom/Ótimo) DAQUELE valor específico — a linha
+    // que os conecta continua na cor original do gráfico (só os valores
+    // ganham a cor da faixa).
+    var dots = points.map(function(p,i){
+      var tone = opts.classify ? (CLASS_COLOR[opts.classify(p.y)] || color) : color;
+      return '<circle cx="'+coords[i].x+'" cy="'+coords[i].y+'" r="3.2" fill="'+tone+'"/>';
+    }).join("");
     var valueLabels = points.map(function(p,i){
       if(p.value===undefined || p.value===null || p.value==='') return '';
       var ly = Math.max(9, coords[i].y - 8);
-      return '<text x="'+coords[i].x+'" y="'+ly+'" font-size="9.5" font-weight="600" fill="'+color+'" text-anchor="middle">'+escapeHtml(p.value)+'</text>';
+      var tone = opts.classify ? (CLASS_COLOR[opts.classify(p.y)] || color) : color;
+      return '<text x="'+coords[i].x+'" y="'+ly+'" font-size="9.5" font-weight="600" fill="'+tone+'" text-anchor="middle">'+escapeHtml(p.value)+'</text>';
     }).join("");
     var labels = points.map(function(p,i){
       return '<text x="'+coords[i].x+'" y="'+axisY+'" font-size="9" fill="var(--ink-soft)" text-anchor="middle">'+p.label+'</text>';
