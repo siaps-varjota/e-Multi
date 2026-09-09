@@ -335,6 +335,7 @@
   .data-table thead th{
     position:sticky;top:0;background:var(--paper);color:var(--ink-soft);
     text-align:left;font-weight:600;padding:8px 12px;border-bottom:1px solid var(--line);z-index:1;
+    white-space:normal;line-height:1.25;
   }
   .data-table tbody td{padding:7px 12px;border-bottom:1px solid var(--line);}
   .data-table tbody tr:hover{background:var(--paper);}
@@ -2170,6 +2171,7 @@
         + '<td>'+fmtInt(p.denominadorM2)+'</td>'
         + '<td>'+(p.m2!=null ? fmtDec(p.m2,2)+'%' : '—')+'</td>'
         + '<td>'+pill(classeM2)+'</td>'
+        + '<td>'+(p.notaFinal!=null ? fmtDec(p.notaFinal,2) : '—')+'</td>'
         + '<td>'+pill(desemp)+'</td>'
         + '</tr>';
     }).join('');
@@ -2178,7 +2180,7 @@
       + '<p class="footnote" style="margin:0 0 12px;">Um mês por linha, cada um com sua própria janela móvel de '+JANELA_MESES+' meses terminando naquele mês (mesmos pontos dos gráficos acima). "Desempenho quadrimestral" é a síntese própria M1×6 + M2×4 — ver Notas Metodológicas.</p>'
       + '<div class="table-wrap"><table class="data-table"><thead><tr>'
       +   '<th>Mês</th><th>Numerador M1</th><th>Denominador M1</th><th>M1</th><th>Classe M1</th>'
-      +   '<th>Numerador M2</th><th>Denominador M2</th><th>M2 (%)</th><th>Classe M2</th><th>Desempenho quadrimestral</th>'
+      +   '<th>Numerador M2</th><th>Denominador M2</th><th>M2 (%)</th><th>Classe M2</th><th>Nota do desempenho</th><th>Desempenho quadrimestral</th>'
       + '</tr></thead><tbody>'+trendHistoryRows+'</tbody></table></div></div>';
 
     var notesList = document.getElementById('notesList');
