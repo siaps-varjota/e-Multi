@@ -238,8 +238,24 @@
       if(!vals.length) return null;
       return vals.reduce(function(a,b){ return a+b; }, 0) / vals.length;
     }
+    // Soma "crua": usada só pra contexto que não tem relação direta com
+    // M1/M2 (nenhum campo hoje) — mantida por clareza/possível uso futuro.
     function soma(campo){
       return resultadosMensais.reduce(function(a,r){ return a + (r.data[campo]||0); }, 0);
+    }
+    // Os números de contexto do M1/M2 (numerador, denominador, atendimentos,
+    // atividades, reuniões) precisam vir da MESMA base que o m1/m2 exibido
+    // no gauge — ou seja, das janelas móveis oficiais (resultadosJanela),
+    // não dos meses isolados. Usamos MÉDIA das 4 janelas (não soma): como
+    // cada janela já cobre JANELA_MESES meses, somar as 4 janelas do
+    // quadrimestre contaria o mesmo dado várias vezes (elas se sobrepõem).
+    // A média das janelas fica na mesma ordem de grandeza do quadrimestre
+    // e é consistente com como m1/m2 acima já são calculados.
+    function mediaJanela(campo){
+      var vals = resultadosJanela.map(function(r){ return r.data[campo]; }).filter(function(v){ return v!=null; });
+      if(!vals.length) return null;
+      var media = vals.reduce(function(a,b){ return a+b; }, 0) / vals.length;
+      return Math.round(media);
     }
     var m1 = media('m1');
     var m2 = media('m2');
@@ -274,6 +290,13 @@
         participacoesColetivas: soma('participacoesColetivas'),
         numeradorM1: soma('numeradorM1'),
         denominadorM1: soma('denominadorM1'),
+        // Versões "janela": média do numerador/denominador das 4 janelas
+        // móveis que compõem o m1 acima — só pra legenda do gauge bater
+        // com o valor do ponteiro (ver gaugeRow/gaugeRowM1 mais abaixo).
+        // Composição e Meta do quadrimestre continuam usando os totais
+        // reais do quadrimestre (numeradorM1/denominadorM1 acima).
+        numeradorM1Janela: mediaJanela('numeradorM1'),
+        denominadorM1Janela: mediaJanela('denominadorM1'),
         m1: m1,
         classificacaoM1: classificacaoM1,
         atividadesTotais: soma('atividadesTotais'),
@@ -282,6 +305,8 @@
         reunioesCompartilhadas: soma('reunioesCompartilhadas'),
         denominadorM2: soma('denominadorM2'),
         numeradorM2: soma('numeradorM2'),
+        numeradorM2Janela: mediaJanela('numeradorM2'),
+        denominadorM2Janela: mediaJanela('denominadorM2'),
         m2: m2,
         classificacaoM2: classificacaoM2,
         pontosM1: pontosM1Pesados,
@@ -1581,6 +1606,16 @@
     }
 
     var d = record.data;
+    // Legenda do gauge (a linha "X atendimentos ÷ Y pessoas" embaixo do
+    // ponteiro) precisa bater com o valor do m1/m2 mostrado — que é
+    // calculado com a janela móvel oficial. Quando existir a versão
+    // "Janela" (média do quadrimestre / vários meses selecionados), usa
+    // ela; num mês único o próprio d.numeradorM1/d.denominadorM1 JÁ é a
+    // janela (ver aplicarMesReferencia), então cai nele direto.
+    var numM1Gauge = d.numeradorM1Janela!=null ? d.numeradorM1Janela : d.numeradorM1;
+    var denM1Gauge = d.denominadorM1Janela!=null ? d.denominadorM1Janela : d.denominadorM1;
+    var numM2Gauge = d.numeradorM2Janela!=null ? d.numeradorM2Janela : d.numeradorM2;
+    var denM2Gauge = d.denominadorM2Janela!=null ? d.denominadorM2Janela : d.denominadorM2;
 
     // ---- Composição (4 cartões: Numerador/Denominador de M1 e M2) ----
     var numM1Bar = stackbar([
@@ -1611,11 +1646,11 @@
         gaugeCardHTML('M1 — Média de atendimentos por pessoa',
           'Atendimentos individuais + coletivos ÷ pessoas atendidas',
           d.m1, 4, CLASS_BANDS_M1, 'needle-geral-m1', fmtDec(d.m1,2), d.classificacaoM1,
-          fmtInt(d.numeradorM1)+' atendimentos ÷ '+fmtInt(d.denominadorM1)+' pessoas', LEGEND_M1)
+          fmtInt(numM1Gauge)+' atendimentos ÷ '+fmtInt(denM1Gauge)+' pessoas', LEGEND_M1)
       + gaugeCardHTML('M2 — Ações compartilhadas',
           'Ações compartilhadas ÷ ações realizadas × 100',
           d.m2, 8, CLASS_BANDS_M2, 'needle-geral-m2', fmtDec(d.m2,2)+'<span class="unit">%</span>', d.classificacaoM2,
-          fmtInt(d.numeradorM2)+' compartilhadas ÷ '+fmtInt(d.denominadorM2)+' ações', LEGEND_M2)
+          fmtInt(numM2Gauge)+' compartilhadas ÷ '+fmtInt(denM2Gauge)+' ações', LEGEND_M2)
       + gaugeCardHTML('Desempenho quadrimestral',
           'Nota final = (Pontos M1 × 6 + Pontos M2 × 4) ÷ 10',
           d.notaFinal, 10, CLASS_BANDS_NOTA, 'needle-geral-nota', fmtDec(d.notaFinal,2), d.desempenho,
@@ -1635,7 +1670,7 @@
       gaugeCardHTML('M1 — Média de atendimentos por pessoa',
         'Atendimentos individuais + coletivos ÷ pessoas atendidas',
         d.m1, 4, CLASS_BANDS_M1, 'needle-m1tab-m1', fmtDec(d.m1,2), d.classificacaoM1,
-        fmtInt(d.numeradorM1)+' atendimentos ÷ '+fmtInt(d.denominadorM1)+' pessoas', LEGEND_M1);
+        fmtInt(numM1Gauge)+' atendimentos ÷ '+fmtInt(denM1Gauge)+' pessoas', LEGEND_M1);
     document.getElementById('compRowM1').innerHTML =
         '<div class="card comp-card"><h4>Numerador do M1</h4>'+numM1Bar+'</div>'
       + '<div class="card comp-card"><h4>Denominador do M1</h4>'+denM1Bar+'</div>';
@@ -1646,7 +1681,7 @@
       gaugeCardHTML('M2 — Ações compartilhadas',
         'Ações compartilhadas ÷ ações realizadas × 100',
         d.m2, 8, CLASS_BANDS_M2, 'needle-m2tab-m2', fmtDec(d.m2,2)+'<span class="unit">%</span>', d.classificacaoM2,
-        fmtInt(d.numeradorM2)+' compartilhadas ÷ '+fmtInt(d.denominadorM2)+' ações', LEGEND_M2);
+        fmtInt(numM2Gauge)+' compartilhadas ÷ '+fmtInt(denM2Gauge)+' ações', LEGEND_M2);
     document.getElementById('compRowM2').innerHTML =
         '<div class="card comp-card"><h4>Numerador do M2</h4>'+numM2Bar+'</div>'
       + '<div class="card comp-card"><h4>Denominador do M2</h4>'+denM2Bar+'</div>';
