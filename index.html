@@ -1746,15 +1746,17 @@
       return '<text x="'+coords[i].x+'" y="'+axisY+'" font-size="9" fill="var(--ink-soft)" text-anchor="middle">'+p.label+'</text>';
     }).join("");
 
-    // Linha de média de cada quadrimestre (Jan–Abr / Mai–Ago / Set–Dez):
-    // agrupa os pontos exibidos que pertencem ao mesmo quadrimestre (cada
-    // ponto já traz p.quadKey/p.quadLabel), desenha uma linha horizontal
-    // tracejada na altura da média DESSES pontos e escreve o valor logo
-    // ABAIXO da linha (dentro da faixa reservada em avgLabelGap, longe da
-    // linha de dados, dos rótulos de valor e da linha de meses). A cor
-    // (linha + texto + fundo do rótulo) segue a classificação da média
+    // "Montanha" de média de cada quadrimestre (Jan–Abr / Mai–Ago /
+    // Set–Dez): agrupa os pontos exibidos que pertencem ao mesmo
+    // quadrimestre (cada ponto já traz p.quadKey/p.quadLabel) e desenha,
+    // atrás da linha de dados, um bloco reto (sem cantos arredondados) do
+    // fundo do gráfico até a altura da média DESSES pontos — 30% opaco
+    // (70% transparente) — com uma linha tracejada marcando o topo e o
+    // valor logo ABAIXO dela (dentro da faixa reservada em avgLabelGap,
+    // longe da linha de dados, dos rótulos de valor e da linha de meses).
+    // A cor (área + linha + texto) segue a classificação da média
     // (Regular/Suficiente/Bom/Ótimo), igual às outras faixas do painel.
-    var avgSvg = '';
+    var avgAreaSvg = '', avgLineSvg = '';
     if(hasAvg){
       var groups = [];
       points.forEach(function(p,i){
@@ -1762,7 +1764,7 @@
         if(last && last.key === p.quadKey){ last.idx.push(i); }
         else { groups.push({key:p.quadKey, label:p.quadLabel, idx:[i]}); }
       });
-      avgSvg = groups.map(function(g){
+      groups.forEach(function(g){
         var ys = g.idx.map(function(i){ return points[i].y; });
         var avg = ys.reduce(function(a,b){ return a+b; }, 0)/ys.length;
         var avgY = plotBottom - ((avg-min)/(max-min))*(plotBottom-padTop);
@@ -1776,14 +1778,17 @@
         var valTxt = g.label+': '+fmtDec(avg,2)+(opts.suffix||'');
         var chipW = Math.max(34, valTxt.length*4.6+8);
         var chip = '<rect x="'+(midX-chipW/2)+'" y="'+(textY-9)+'" width="'+chipW+'" height="12" rx="3" fill="var(--surface)" opacity="0.92"/>';
-        return '<line x1="'+x1+'" y1="'+avgY+'" x2="'+x2+'" y2="'+avgY+'" stroke="'+tone+'" stroke-width="1.3" stroke-dasharray="3 3" opacity="0.9"/>'
+        avgAreaSvg += '<polygon points="'+x1+','+plotBottom+' '+x1+','+avgY+' '+x2+','+avgY+' '+x2+','+plotBottom+'" fill="'+tone+'" opacity="0.3"/>';
+        avgLineSvg += '<line x1="'+x1+'" y1="'+avgY+'" x2="'+x2+'" y2="'+avgY+'" stroke="'+tone+'" stroke-width="1.3" stroke-dasharray="3 3" opacity="0.9"/>'
           + chip
           + '<text x="'+midX+'" y="'+textY+'" font-size="8" font-weight="700" fill="'+tone+'" text-anchor="middle">'+escapeHtml(valTxt)+'</text>';
-      }).join('');
+      });
     }
 
     return '<svg class="spark-svg" viewBox="0 0 '+W+' '+(H+14)+'">'
-      + '<path d="'+path+'" fill="none" stroke="'+color+'" stroke-width="2"/>' + dots + valueLabels + avgSvg + labels + '</svg>';
+      + avgAreaSvg
+      + '<path d="'+path+'" fill="none" stroke="'+color+'" stroke-width="2"/>' + dots + valueLabels
+      + avgLineSvg + labels + '</svg>';
   }
 
   // ---------- Tabs ----------
