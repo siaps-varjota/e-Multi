@@ -1,4 +1,4 @@
-  :root{
+:root{
     --paper:#F1F4EE;
     --surface:#FFFFFF;
     --ink:#13241F;
@@ -229,12 +229,32 @@
 
   /* Layout das abas M1/M2: composição (numerador em cima, denominador
      embaixo) à esquerda, gauge à direita — pra otimizar espaço vertical. */
+  /* Layout das abas M1/M2: gauge à esquerda, composição (numerador,
+     denominador, meta do quadrimestre) empilhada à direita — os 3 cards
+     dividem igualmente a altura da coluna, que fica igual à do gauge
+     (align-items:stretch). */
   .mm-layout{display:flex;gap:20px;flex-wrap:wrap;align-items:stretch;margin-bottom:8px;}
   .mm-comp-col{flex:1 1 280px;min-width:260px;display:flex;flex-direction:column;gap:18px;}
+  .mm-comp-col .comp-card{flex:1;display:flex;flex-direction:column;justify-content:center;}
   .mm-gauge-col{flex:1 1 260px;min-width:260px;display:flex;}
   .mm-gauge-col .gauge-card{flex:1;}
   @media (max-width:720px){
     .mm-layout{flex-direction:column;}
+    .mm-comp-col .comp-card{flex:none;}
+  }
+
+  /* ---------- Mini card de Meta do quadrimestre (dentro do mm-comp-col) ---------- */
+  .meta-mini-rows{display:flex;flex-direction:column;gap:12px;}
+  .meta-mini-row{display:flex;align-items:flex-start;gap:9px;}
+  .meta-mini-dot{width:9px;height:9px;border-radius:50%;flex:0 0 auto;margin-top:4px;}
+  .meta-mini-label{margin:0;font-size:12.5px;font-weight:600;}
+  .meta-mini-sub{margin:2px 0 0;font-size:12px;color:var(--ink-soft);}
+  .meta-mini-status{font-weight:600;color:var(--pill-regular);}
+  .meta-mini-status-ok{color:var(--arc-bom);}
+  .meta-mini-foot{margin:10px 0 0;font-size:11.5px;color:var(--ink-soft);}
+  .pill-preliminar-mini{
+    display:inline-block;background:#FDF0DE;color:#B4791F;border-radius:999px;
+    padding:2px 8px;font-size:10.5px;font-weight:600;vertical-align:middle;margin-left:6px;
   }
   .stackbar{display:flex;width:100%;height:16px;border-radius:5px;overflow:hidden;background:var(--paper);border:1px solid var(--line);}
   .stackbar .seg{height:100%;}
