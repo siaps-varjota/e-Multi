@@ -267,19 +267,6 @@
       .sort(function(a,b){ return a.nome.localeCompare(b.nome,'pt-BR'); });
     var pessoasAtendidasRows = pessoasLista.map(function(p){ return [p.nome, p.at, p.part, p.at+p.part]; });
 
-    // "Sub" M1/M2: pro texto embaixo do gauge ("X atendimentos ÷ Y
-    // pessoas"), nesse modo de média usamos a MÉDIA por mês (soma dos
-    // meses ÷ número de meses), arredondada pra inteiro — não a soma
-    // bruta dos 4 meses — pra ficar coerente com o M1/M2 do gauge, que
-    // também é uma média (dos índices mensais). A soma continua intacta
-    // em numeradorM1/denominadorM1/numeradorM2/denominadorM2 (usada nos
-    // cartões de Composição e nas Metas do quadrimestre).
-    var nMeses = resultadosMensais.length || 1;
-    var subNumeradorM1 = Math.round(soma('numeradorM1') / nMeses);
-    var subDenominadorM1 = Math.round(soma('denominadorM1') / nMeses);
-    var subNumeradorM2 = Math.round(soma('numeradorM2') / nMeses);
-    var subDenominadorM2 = Math.round(soma('denominadorM2') / nMeses);
-
     return {
       equipe: currentEquipes.map(function(e){ return e.label; }).join(' + '),
       data: {
@@ -287,8 +274,6 @@
         participacoesColetivas: soma('participacoesColetivas'),
         numeradorM1: soma('numeradorM1'),
         denominadorM1: soma('denominadorM1'),
-        subNumeradorM1: subNumeradorM1,
-        subDenominadorM1: subDenominadorM1,
         m1: m1,
         classificacaoM1: classificacaoM1,
         atividadesTotais: soma('atividadesTotais'),
@@ -297,8 +282,6 @@
         reunioesCompartilhadas: soma('reunioesCompartilhadas'),
         denominadorM2: soma('denominadorM2'),
         numeradorM2: soma('numeradorM2'),
-        subNumeradorM2: subNumeradorM2,
-        subDenominadorM2: subDenominadorM2,
         m2: m2,
         classificacaoM2: classificacaoM2,
         pontosM1: pontosM1Pesados,
@@ -782,8 +765,6 @@
         participacoesColetivas: participacoesColetivas,
         numeradorM1: numeradorM1,
         denominadorM1: denominadorM1,
-        subNumeradorM1: numeradorM1,
-        subDenominadorM1: denominadorM1,
         m1: m1,
         classificacaoM1: classificacaoM1,
         atividadesTotais: atividadesTotais,
@@ -792,8 +773,6 @@
         reunioesCompartilhadas: reunioesCompartilhadas,
         denominadorM2: denominadorM2,
         numeradorM2: numeradorM2,
-        subNumeradorM2: numeradorM2,
-        subDenominadorM2: denominadorM2,
         m2: m2,
         classificacaoM2: classificacaoM2,
         pontosM1: pontosM1Pesados,
@@ -1632,11 +1611,11 @@
         gaugeCardHTML('M1 — Média de atendimentos por pessoa',
           'Atendimentos individuais + coletivos ÷ pessoas atendidas',
           d.m1, 4, CLASS_BANDS_M1, 'needle-geral-m1', fmtDec(d.m1,2), d.classificacaoM1,
-          fmtInt(d.subNumeradorM1)+' atendimentos ÷ '+fmtInt(d.subDenominadorM1)+' pessoas', LEGEND_M1)
+          fmtInt(d.numeradorM1)+' atendimentos ÷ '+fmtInt(d.denominadorM1)+' pessoas', LEGEND_M1)
       + gaugeCardHTML('M2 — Ações compartilhadas',
           'Ações compartilhadas ÷ ações realizadas × 100',
           d.m2, 8, CLASS_BANDS_M2, 'needle-geral-m2', fmtDec(d.m2,2)+'<span class="unit">%</span>', d.classificacaoM2,
-          fmtInt(d.subNumeradorM2)+' compartilhadas ÷ '+fmtInt(d.subDenominadorM2)+' ações', LEGEND_M2)
+          fmtInt(d.numeradorM2)+' compartilhadas ÷ '+fmtInt(d.denominadorM2)+' ações', LEGEND_M2)
       + gaugeCardHTML('Desempenho quadrimestral',
           'Nota final = (Pontos M1 × 6 + Pontos M2 × 4) ÷ 10',
           d.notaFinal, 10, CLASS_BANDS_NOTA, 'needle-geral-nota', fmtDec(d.notaFinal,2), d.desempenho,
@@ -1656,7 +1635,7 @@
       gaugeCardHTML('M1 — Média de atendimentos por pessoa',
         'Atendimentos individuais + coletivos ÷ pessoas atendidas',
         d.m1, 4, CLASS_BANDS_M1, 'needle-m1tab-m1', fmtDec(d.m1,2), d.classificacaoM1,
-        fmtInt(d.subNumeradorM1)+' atendimentos ÷ '+fmtInt(d.subDenominadorM1)+' pessoas', LEGEND_M1);
+        fmtInt(d.numeradorM1)+' atendimentos ÷ '+fmtInt(d.denominadorM1)+' pessoas', LEGEND_M1);
     document.getElementById('compRowM1').innerHTML =
         '<div class="card comp-card"><h4>Numerador do M1</h4>'+numM1Bar+'</div>'
       + '<div class="card comp-card"><h4>Denominador do M1</h4>'+denM1Bar+'</div>';
@@ -1667,7 +1646,7 @@
       gaugeCardHTML('M2 — Ações compartilhadas',
         'Ações compartilhadas ÷ ações realizadas × 100',
         d.m2, 8, CLASS_BANDS_M2, 'needle-m2tab-m2', fmtDec(d.m2,2)+'<span class="unit">%</span>', d.classificacaoM2,
-        fmtInt(d.subNumeradorM2)+' compartilhadas ÷ '+fmtInt(d.subDenominadorM2)+' ações', LEGEND_M2);
+        fmtInt(d.numeradorM2)+' compartilhadas ÷ '+fmtInt(d.denominadorM2)+' ações', LEGEND_M2);
     document.getElementById('compRowM2').innerHTML =
         '<div class="card comp-card"><h4>Numerador do M2</h4>'+numM2Bar+'</div>'
       + '<div class="card comp-card"><h4>Denominador do M2</h4>'+denM2Bar+'</div>';
