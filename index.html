@@ -1253,7 +1253,7 @@
   // disponíveis (sem filtro); com meses marcados, só entram atendimentos/
   // participações daqueles meses.
   function pessoasAtendidasParaMeses(monthValues){
-    var pessoasSet = {}; // nome em maiúsculas -> {nome, at, part}
+    var pessoasSet = {}; // nome em maiúsculas -> {nome, at, part, datas:[Date,...]}
     function dentroDoFiltro(d){
       if(!monthValues || !monthValues.length) return true;
       return !!d && monthValues.indexOf(monthOptionValue(d)) >= 0;
@@ -1265,10 +1265,12 @@
       if(iData >= 0 && iNome >= 0){
         atCached.rows.forEach(function(r){
           var nome = String(r[iNome]||"").trim();
-          if(!nome || !dentroDoFiltro(parseBRDate(r[iData]))) return;
+          var d = parseBRDate(r[iData]);
+          if(!nome || !dentroDoFiltro(d)) return;
           var chave = nome.toUpperCase();
-          if(!pessoasSet[chave]) pessoasSet[chave] = {nome:nome, at:0, part:0};
+          if(!pessoasSet[chave]) pessoasSet[chave] = {nome:nome, at:0, part:0, datas:[]};
           pessoasSet[chave].at++;
+          if(d) pessoasSet[chave].datas.push(d);
         });
       }
     }
@@ -1279,18 +1281,34 @@
       if(iPData >= 0 && iPNome >= 0){
         partCached.rows.forEach(function(r){
           var nome = String(r[iPNome]||"").trim();
-          if(!nome || nome.indexOf("(sem lista nominal") === 0 || !dentroDoFiltro(parseBRDate(r[iPData]))) return;
+          var d = parseBRDate(r[iPData]);
+          if(!nome || nome.indexOf("(sem lista nominal") === 0 || !dentroDoFiltro(d)) return;
           var chave = nome.toUpperCase();
-          if(!pessoasSet[chave]) pessoasSet[chave] = {nome:nome, at:0, part:0};
+          if(!pessoasSet[chave]) pessoasSet[chave] = {nome:nome, at:0, part:0, datas:[]};
           pessoasSet[chave].part++;
+          if(d) pessoasSet[chave].datas.push(d);
         });
       }
     }
     var pessoasLista = Object.keys(pessoasSet).map(function(k){ return pessoasSet[k]; })
       .sort(function(a,b){ return a.nome.localeCompare(b.nome,'pt-BR'); });
+    // Ordena as datas de cada pessoa em ordem cronológica e descobre o
+    // maior número de datas entre todas as pessoas, pra saber quantas
+    // colunas "Data N" a tabela precisa ter (colunas sobrando ficam "—").
+    var maxDatas = 0;
+    pessoasLista.forEach(function(p){
+      p.datas.sort(function(a,b){ return a-b; });
+      if(p.datas.length > maxDatas) maxDatas = p.datas.length;
+    });
+    var dataHeaders = [];
+    for(var i=1;i<=maxDatas;i++){ dataHeaders.push("Data "+i); }
     return {
-      headers: ["Nome","Atendimentos","Participantes Ativ. Coletiva","Total"],
-      rows: pessoasLista.map(function(p){ return [p.nome, p.at, p.part, p.at+p.part]; })
+      headers: ["Nome","Atendimentos","Participantes Ativ. Coletiva","Total"].concat(dataHeaders),
+      rows: pessoasLista.map(function(p){
+        var row = [p.nome, p.at, p.part, p.at+p.part];
+        for(var i=0;i<maxDatas;i++){ row.push(p.datas[i] ? fmtBRDate(p.datas[i]) : "—"); }
+        return row;
+      })
     };
   }
   // Meses disponíveis pro filtro de "Pessoas atendidas": união dos meses
