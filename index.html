@@ -178,7 +178,11 @@
   .gauge-row{display:flex;gap:20px;flex-wrap:wrap;margin-bottom:20px;}
   .gauge-card{flex:1;min-width:280px;display:flex;flex-direction:column;align-items:center;text-align:center;}
   .gauge-card h3{font-size:15px;font-weight:500;margin:0 0 2px;}
-  .gauge-card .formula{font-size:12px;color:var(--ink-soft);margin:0 0 6px;}
+  .gauge-card .formula{font-size:12px;color:var(--ink-soft);margin:0 0 6px;line-height:1.4;}
+  /* Reserva uma altura fixa pro bloco título+fórmula: sem isso, um card
+     com fórmula de 2 linhas empurra o gauge mais pra baixo que os outros,
+     desalinhando os arcos entre os cartões da Visão geral. */
+  .gauge-header{width:100%;min-height:60px;display:flex;flex-direction:column;justify-content:flex-start;}
   .gauge-svg{width:100%;max-width:230px;height:auto;}
   .gauge-needle{transform:rotate(var(--target-angle,0deg));animation:gaugeSweep 900ms cubic-bezier(.2,.8,.2,1) both;}
   @keyframes gaugeSweep{from{transform:rotate(0deg);}to{transform:rotate(var(--target-angle,0deg));}}
@@ -1594,8 +1598,7 @@
 
   function gaugeCardHTML(title, formula, value, domainMax, bands, gaugeId, valueHtml, classLabel, note, legend){
     return '<div class="card gauge-card">'
-      + '<h3>'+title+'</h3>'
-      + '<p class="formula">'+formula+'</p>'
+      + '<div class="gauge-header"><h3>'+title+'</h3><p class="formula">'+formula+'</p></div>'
       + buildGauge(value, domainMax, bands, gaugeId)
       + '<div class="gauge-value">'+valueHtml+'</div>'
       + '<span class="pill" style="background:'+pillHex(classLabel)+'">'+(classLabel||'—')+'</span>'
@@ -1732,18 +1735,21 @@
     // (Regular/Suficiente/Bom/Ótimo) DAQUELE valor específico — a linha
     // que os conecta continua na cor original do gráfico (só os valores
     // ganham a cor da faixa).
-    var dots = points.map(function(p,i){
+    // Cada mês vira um <g class="tp-point" data-month="..."> com um
+    // círculo maior e invisível (área de toque/hover mais fácil de
+    // acertar), o ponto, o valor e o rótulo do mês embaixo — tudo junto
+    // pra dar/tirar destaque em bloco ao passar o mouse ou clicar (ver
+    // setupTrendInteractivity), inclusive no card do outro indicador.
+    var pointsSvg = points.map(function(p,i){
       var tone = opts.classify ? (CLASS_COLOR[opts.classify(p.y)] || color) : color;
-      return '<circle cx="'+coords[i].x+'" cy="'+coords[i].y+'" r="3.2" fill="'+tone+'"/>';
-    }).join("");
-    var valueLabels = points.map(function(p,i){
-      if(p.value===undefined || p.value===null || p.value==='') return '';
       var ly = Math.max(9, coords[i].y - 8);
-      var tone = opts.classify ? (CLASS_COLOR[opts.classify(p.y)] || color) : color;
-      return '<text x="'+coords[i].x+'" y="'+ly+'" font-size="9.5" font-weight="600" fill="'+tone+'" text-anchor="middle">'+escapeHtml(p.value)+'</text>';
-    }).join("");
-    var labels = points.map(function(p,i){
-      return '<text x="'+coords[i].x+'" y="'+axisY+'" font-size="9" fill="var(--ink-soft)" text-anchor="middle">'+p.label+'</text>';
+      var valTxt = (p.value!==undefined && p.value!==null && p.value!=='') ? '<text class="tp-val" x="'+coords[i].x+'" y="'+ly+'" font-size="9.5" font-weight="600" fill="'+tone+'" text-anchor="middle">'+escapeHtml(p.value)+'</text>' : '';
+      return '<g class="tp-point" data-month="'+escapeHtml(p.label)+'">'
+        + '<circle class="tp-hit" cx="'+coords[i].x+'" cy="'+coords[i].y+'" r="9" fill="transparent"/>'
+        + '<circle class="tp-dot" cx="'+coords[i].x+'" cy="'+coords[i].y+'" r="3.2" fill="'+tone+'"/>'
+        + valTxt
+        + '<text class="tp-axis" x="'+coords[i].x+'" y="'+axisY+'" font-size="9" fill="var(--ink-soft)" text-anchor="middle">'+p.label+'</text>'
+        + '</g>';
     }).join("");
 
     // "Montanha" de média de cada quadrimestre (Jan–Abr / Mai–Ago /
@@ -1785,10 +1791,10 @@
       });
     }
 
-    return '<svg class="spark-svg" viewBox="0 0 '+W+' '+(H+14)+'">'
+    return '<svg class="spark-svg trend-interactive" viewBox="0 0 '+W+' '+(H+14)+'">'
       + avgAreaSvg
-      + '<path d="'+path+'" fill="none" stroke="'+color+'" stroke-width="2"/>' + dots + valueLabels
-      + avgLineSvg + labels + '</svg>';
+      + '<path d="'+path+'" fill="none" stroke="'+color+'" stroke-width="2"/>' + pointsSvg
+      + avgLineSvg + '</svg>';
   }
 
   // ---------- Tabs ----------
