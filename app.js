@@ -834,12 +834,16 @@
       .sort(function(a,b){ return a.nome.localeCompare(b.nome,'pt-BR'); });
     // Ordena as datas de cada pessoa em ordem cronológica e descobre o
     // maior número de datas entre todas as pessoas, pra saber quantas
-    // colunas "Data N" a tabela precisa ter (colunas sobrando ficam "—").
+    // colunas "Data N" a tabela precisa ter (colunas sobrando ficam "—"),
+    // limitado a no máximo 10 colunas (MAX_DATAS_PESSOA_ATENDIDA) — quem
+    // tiver mais de 10 eventos no período só mostra os 10 primeiros.
+    var MAX_DATAS_PESSOA_ATENDIDA = 10;
     var maxDatas = 0;
     pessoasLista.forEach(function(p){
       p.datas.sort(function(a,b){ return a-b; });
       if(p.datas.length > maxDatas) maxDatas = p.datas.length;
     });
+    maxDatas = Math.min(maxDatas, MAX_DATAS_PESSOA_ATENDIDA);
     var dataHeaders = [];
     for(var i=1;i<=maxDatas;i++){ dataHeaders.push("Data "+i); }
     return {
