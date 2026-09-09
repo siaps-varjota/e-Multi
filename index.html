@@ -8,6 +8,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <style>
   :root{
     --paper:#F1F4EE;
@@ -299,7 +301,18 @@
   .indicator-tab-head p{margin:0;font-size:13px;color:var(--ink-soft);}
   .lists-section{margin-top:8px;}
   .list-card{margin-bottom:18px;}
-  .list-card h4{font-size:14.5px;font-weight:500;margin:0 0 10px;}
+  .list-card-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:10px;flex-wrap:wrap;}
+  .list-card-head h4{margin:0;}
+  .pdf-btn{
+    display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:999px;
+    border:1px solid var(--header-bg);background:var(--header-bg);color:#fff;
+    font-family:'Inter',sans-serif;font-size:12.5px;font-weight:600;cursor:pointer;
+    transition:background .15s ease,opacity .15s ease;white-space:nowrap;
+  }
+  .pdf-btn:hover{background:var(--header-bg-2);}
+  .pdf-btn:disabled{opacity:.55;cursor:not-allowed;}
+  .pdf-btn svg{width:14px;height:14px;flex:0 0 auto;}
+  .list-card h4{font-size:14.5px;font-weight:500;margin:0;}
   .list-search{
     width:100%;max-width:320px;padding:8px 12px;margin-bottom:10px;
     border:1px solid var(--line);border-radius:6px;font-family:'Inter',sans-serif;
@@ -437,6 +450,7 @@
 
   <div id="tabTendencia" class="tab-panel">
     <div class="trend-row" id="trendRow"></div>
+    <div id="trendHistoryWrap"></div>
     <div class="card">
       <div class="history-head">
         <h4 style="margin:0;font-size:14.5px;font-weight:500;">Histórico de leituras</h4>
@@ -1262,7 +1276,7 @@
   // disponíveis (sem filtro); com meses marcados, só entram atendimentos/
   // participações daqueles meses.
   function pessoasAtendidasParaMeses(monthValues){
-    var pessoasSet = {}; // nome em maiúsculas -> {nome, at, part, eventos:[{data,equipe},...]}
+    var pessoasSet = {}; // nome em maiúsculas -> {nome, at, part, datas:[Date,...]}
     function dentroDoFiltro(d){
       if(!monthValues || !monthValues.length) return true;
       return !!d && monthValues.indexOf(monthOptionValue(d)) >= 0;
@@ -1271,16 +1285,15 @@
     if(atCached){
       var iData = colIndex(atCached.headers, "data_hora");
       var iNome = colIndex(atCached.headers, "nome");
-      var iEquipe = equipeColIndex(atCached.headers);
       if(iData >= 0 && iNome >= 0){
         atCached.rows.forEach(function(r){
           var nome = String(r[iNome]||"").trim();
           var d = parseBRDate(r[iData]);
           if(!nome || !dentroDoFiltro(d)) return;
           var chave = nome.toUpperCase();
-          if(!pessoasSet[chave]) pessoasSet[chave] = {nome:nome, at:0, part:0, eventos:[]};
+          if(!pessoasSet[chave]) pessoasSet[chave] = {nome:nome, at:0, part:0, datas:[]};
           pessoasSet[chave].at++;
-          if(d) pessoasSet[chave].eventos.push({data:d, equipe: iEquipe>=0 ? String(r[iEquipe]||"").trim() : ""});
+          if(d) pessoasSet[chave].datas.push(d);
         });
       }
     }
@@ -1288,40 +1301,36 @@
     if(partCached){
       var iPData = colIndex(partCached.headers, "data");
       var iPNome = colIndex(partCached.headers, "participante");
-      var iPEquipe = equipeColIndex(partCached.headers);
       if(iPData >= 0 && iPNome >= 0){
         partCached.rows.forEach(function(r){
           var nome = String(r[iPNome]||"").trim();
           var d = parseBRDate(r[iPData]);
           if(!nome || nome.indexOf("(sem lista nominal") === 0 || !dentroDoFiltro(d)) return;
           var chave = nome.toUpperCase();
-          if(!pessoasSet[chave]) pessoasSet[chave] = {nome:nome, at:0, part:0, eventos:[]};
+          if(!pessoasSet[chave]) pessoasSet[chave] = {nome:nome, at:0, part:0, datas:[]};
           pessoasSet[chave].part++;
-          if(d) pessoasSet[chave].eventos.push({data:d, equipe: iPEquipe>=0 ? String(r[iPEquipe]||"").trim() : ""});
+          if(d) pessoasSet[chave].datas.push(d);
         });
       }
     }
     var pessoasLista = Object.keys(pessoasSet).map(function(k){ return pessoasSet[k]; })
       .sort(function(a,b){ return a.nome.localeCompare(b.nome,'pt-BR'); });
-    // Ordena os eventos de cada pessoa em ordem cronológica e descobre o
-    // maior número de eventos entre todas as pessoas, pra saber quantos
-    // pares de colunas "Data N"/"Equipe N" a tabela precisa ter (colunas
-    // sobrando ficam "—").
-    var maxEventos = 0;
+    // Ordena as datas de cada pessoa em ordem cronológica e descobre o
+    // maior número de datas entre todas as pessoas, pra saber quantas
+    // colunas "Data N" a tabela precisa ter (colunas sobrando ficam "—").
+    var maxDatas = 0;
     pessoasLista.forEach(function(p){
-      p.eventos.sort(function(a,b){ return a.data-b.data; });
-      if(p.eventos.length > maxEventos) maxEventos = p.eventos.length;
+      p.datas.sort(function(a,b){ return a-b; });
+      if(p.datas.length > maxDatas) maxDatas = p.datas.length;
     });
-    var eventoHeaders = [];
-    for(var i=1;i<=maxEventos;i++){ eventoHeaders.push("Data "+i, "Equipe "+i); }
+    var dataHeaders = [];
+    for(var i=1;i<=maxDatas;i++){ dataHeaders.push("Data "+i); }
     return {
-      headers: ["Nome","Atendimentos","Participantes Ativ. Coletiva","Total"].concat(eventoHeaders),
+      headers: ["Nome","Atendimentos","Participantes Ativ. Coletiva","Total"].concat(dataHeaders),
       rows: pessoasLista.map(function(p){
         var row = [p.nome, p.at, p.part, p.at+p.part];
-        for(var i=0;i<maxEventos;i++){
-          var ev = p.eventos[i];
-          row.push(ev ? fmtBRDate(ev.data) : "—");
-          row.push(ev && ev.equipe ? ev.equipe : "—");
+        for(var i=0;i<maxDatas;i++){
+          row.push(p.datas[i] ? fmtBRDate(p.datas[i]) : "—");
         }
         return row;
       })
@@ -1372,11 +1381,13 @@
       : latestSheets[name];
     if(isPessoasAtendidas) latestSheets[name] = cached;
     var body;
+    var hasTable = false;
     if(!cached){
       body = '<div class="list-placeholder">Não encontramos uma aba chamada "'+escapeHtml(name)+'" na planilha publicada.</div>';
     } else if(!cached.rows.length && !isPessoasAtendidas){
       body = '<div class="list-placeholder">Esta lista está vazia.</div>';
     } else {
+      hasTable = true;
       var dateColIdx = dateColIndexForList(cached.headers);
       listDateColIdx[name] = dateColIdx;
       var theadHtml = '<tr>'+cached.headers.map(function(h){ return '<th>'+escapeHtml(h)+'</th>'; }).join('')+'</tr>';
@@ -1408,7 +1419,14 @@
         + '<input class="list-search" type="text" placeholder="Filtrar nesta lista…" data-filter-key="'+escapeHtml(name)+'">'
         + '<div class="table-wrap"><table class="data-table"><thead>'+theadHtml+'</thead><tbody>'+bodyHtml+'</tbody></table></div>';
     }
-    return '<div class="card list-card" data-list-card="'+escapeHtml(name)+'"><h4>'+escapeHtml(displayListName(name))+'</h4>'+body+'</div>';
+    var pdfBtnHtml = hasTable
+      ? '<button type="button" class="pdf-btn" data-pdf-btn="'+escapeHtml(name)+'">'
+        + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 15h1a1.5 1.5 0 0 0 0-3H9v5"/><path d="M13 12v5h1a2 2 0 0 0 0-5z"/><path d="M18.5 12H17v5"/><path d="M17 14.5h1.3"/></svg>'
+        + '<span>Gerar PDF</span></button>'
+      : '';
+    return '<div class="card list-card" data-list-card="'+escapeHtml(name)+'">'
+      + '<div class="list-card-head"><h4>'+escapeHtml(displayListName(name))+'</h4>'+pdfBtnHtml+'</div>'
+      + body + '</div>';
   }
 
   function renderListsSection(containerId, names){
@@ -1558,6 +1576,126 @@
         applyFilters(card);
       });
     });
+
+    el.querySelectorAll('[data-pdf-btn]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        gerarPdfLista(btn.getAttribute('data-pdf-btn'), btn.closest('.list-card'), btn);
+      });
+    });
+  }
+
+  // ---------- Exportar lista em PDF ----------
+  // Gera um PDF "elegante" (faixa de cabeçalho colorida + tabela) a partir
+  // do que está REALMENTE visível na tela: lê o <thead>/<tbody> do próprio
+  // card já filtrado (busca + filtros de coluna + filtro de mês), em vez
+  // de reconstruir a partir de latestSheets — assim o PDF bate 100% com o
+  // que os filtros ativos estão mostrando, sem duplicar a lógica deles.
+  function monthValueToLabel(v){
+    var parts = String(v).split('-');
+    return monthOptionLabel(new Date(+parts[0], +parts[1]-1, 1));
+  }
+  function slugifyFileName(s){
+    return normalizeText(s).replace(/[^A-Z0-9]+/g,'_').replace(/^_+|_+$/g,'');
+  }
+  function gerarPdfLista(listName, card, btn){
+    if(!card) return;
+    var jspdfNs = window.jspdf;
+    if(!jspdfNs || !jspdfNs.jsPDF){
+      alert('Não foi possível carregar a biblioteca de geração de PDF (verifique a conexão com a internet) — tente novamente.');
+      return;
+    }
+    var headers = Array.prototype.map.call(card.querySelectorAll('thead th'), function(th){ return th.textContent.trim(); });
+    var todasLinhas = card.querySelectorAll('tbody tr');
+    var linhasVisiveis = Array.prototype.filter.call(todasLinhas, function(tr){ return tr.style.display !== 'none'; })
+      .map(function(tr){ return Array.prototype.map.call(tr.children, function(td){ return td.textContent.trim(); }); });
+    if(!linhasVisiveis.length){
+      alert('Nenhuma linha visível com os filtros atuais dessa lista — ajuste os filtros antes de gerar o PDF.');
+      return;
+    }
+
+    // Monta o resumo dos filtros ativos nesta lista, pra registrar no
+    // cabeçalho do PDF exatamente o que foi aplicado.
+    var filtrosAtivos = [];
+    var searchInput = card.querySelector('.list-search');
+    if(searchInput && searchInput.value.trim()) filtrosAtivos.push('Busca: "'+searchInput.value.trim()+'"');
+    var mesesSelecionados = listMonthFilters[listName] || [];
+    if(mesesSelecionados.length){
+      filtrosAtivos.push('Mês: '+mesesSelecionados.map(monthValueToLabel).join(', '));
+    }
+    card.querySelectorAll('.filter-pair').forEach(function(pair){
+      var colSelect = pair.querySelector('.filter-col');
+      var valWrap = pair.querySelector('.filter-val-ms');
+      var colIdx = colSelect && colSelect.value !== '' ? parseInt(colSelect.value, 10) : null;
+      var vals = (valWrap && valWrap._msInstance) ? valWrap._msInstance.getSelected() : [];
+      if(colIdx !== null && vals.length){
+        filtrosAtivos.push(headers[colIdx]+': '+vals.join(', '));
+      }
+    });
+
+    var totalLinhas = todasLinhas.length;
+    var nomeExibicao = displayListName(listName);
+    var equipeLabel = currentEquipes.map(function(e){ return e.label; }).join(' + ');
+
+    var doc = new jspdfNs.jsPDF({orientation: headers.length > 6 ? 'landscape' : 'portrait', unit:'pt', format:'a4'});
+    var pageWidth = doc.internal.pageSize.getWidth();
+    var pageHeight = doc.internal.pageSize.getHeight();
+    var margin = 28;
+
+    // ---- Faixa de cabeçalho ----
+    doc.setFillColor(21,63,53);
+    doc.rect(0,0,pageWidth,64,'F');
+    doc.setTextColor(238,243,234);
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(15);
+    doc.text('Painel eMulti — Indicadores M1 e M2', margin, 26);
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(10);
+    doc.setTextColor(159,192,174);
+    doc.text(equipeLabel, margin, 42);
+    doc.setFontSize(8.5);
+    doc.text('Gerado em '+new Date().toLocaleString('pt-BR'), pageWidth-margin, 26, {align:'right'});
+
+    // ---- Título da lista + resumo dos filtros ----
+    var y = 84;
+    doc.setTextColor(21,63,53);
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(13);
+    doc.text(nomeExibicao, margin, y);
+    y += 16;
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(9);
+    doc.setTextColor(81,96,90);
+    if(filtrosAtivos.length){
+      filtrosAtivos.forEach(function(linha){
+        var quebradas = doc.splitTextToSize('• '+linha, pageWidth-margin*2);
+        doc.text(quebradas, margin, y);
+        y += 12*quebradas.length;
+      });
+    } else {
+      doc.text('Sem filtros aplicados — exibindo todos os registros.', margin, y);
+      y += 12;
+    }
+    doc.text(fmtInt(linhasVisiveis.length)+' de '+fmtInt(totalLinhas)+(totalLinhas===1?' linha no total.':' linhas no total.'), margin, y);
+    y += 10;
+
+    doc.autoTable({
+      startY: y+6,
+      head: [headers],
+      body: linhasVisiveis,
+      theme: 'grid',
+      margin: {left:margin, right:margin, bottom:34},
+      styles: {font:'helvetica', fontSize: headers.length > 9 ? 7 : (headers.length > 6 ? 7.8 : 8.6), cellPadding:4, overflow:'linebreak', textColor:[19,36,31], lineColor:[220,228,214], lineWidth:0.5},
+      headStyles: {fillColor:[21,63,53], textColor:255, fontStyle:'bold'},
+      alternateRowStyles: {fillColor:[241,244,238]},
+      didDrawPage: function(){
+        doc.setFontSize(8);
+        doc.setTextColor(150,158,152);
+        doc.text('Página '+doc.internal.getCurrentPageInfo().pageNumber, pageWidth-margin, pageHeight-14, {align:'right'});
+      }
+    });
+
+    var arquivo = slugifyFileName(nomeExibicao)+'__'+slugifyFileName(equipeLabel)+'__'+slugifyFileName(new Date().toLocaleDateString('pt-BR'))+'.pdf';
+    doc.save(arquivo);
   }
 
   // ---------- Gauge ----------
@@ -2010,6 +2148,38 @@
       + '</div>';
     document.getElementById('trendRow').innerHTML = trend;
     setupTrendInteractivity();
+
+    // Série histórica (tabela): um mês por linha, cada um já calculado com
+    // sua própria janela móvel de JANELA_MESES meses (mesmos pontos do
+    // sparkline acima) — mostra numerador/denominador/classificação de
+    // M1 e M2 e o "Desempenho quadrimestral" (síntese M1×6 + M2×4) mês a
+    // mês, pra dar visibilidade à composição por trás de cada ponto do
+    // gráfico.
+    var trendHistoryRows = serieTendencia.map(function(p){
+      var classeM1 = classificarM1(p.m1);
+      var classeM2 = classificarM2(p.m2);
+      var desemp = classificarDesempenho(p.notaFinal);
+      function pill(txt){ return '<span class="pill" style="background:'+(CLASS_PILL_HEX[txt]||'#7A8A82')+'">'+escapeHtml(txt)+'</span>'; }
+      return '<tr>'
+        + '<td>'+escapeHtml(monthShortLabel(p.mes))+'</td>'
+        + '<td>'+fmtInt(p.numeradorM1)+'</td>'
+        + '<td>'+fmtInt(p.denominadorM1)+'</td>'
+        + '<td>'+(p.m1!=null ? fmtDec(p.m1,2) : '—')+'</td>'
+        + '<td>'+pill(classeM1)+'</td>'
+        + '<td>'+fmtInt(p.numeradorM2)+'</td>'
+        + '<td>'+fmtInt(p.denominadorM2)+'</td>'
+        + '<td>'+(p.m2!=null ? fmtDec(p.m2,2)+'%' : '—')+'</td>'
+        + '<td>'+pill(classeM2)+'</td>'
+        + '<td>'+pill(desemp)+'</td>'
+        + '</tr>';
+    }).join('');
+    document.getElementById('trendHistoryWrap').innerHTML =
+        '<div class="card"><h4 style="margin:0 0 4px;font-size:14.5px;font-weight:500;">Série histórica — numerador, denominador e desempenho quadrimestral</h4>'
+      + '<p class="footnote" style="margin:0 0 12px;">Um mês por linha, cada um com sua própria janela móvel de '+JANELA_MESES+' meses terminando naquele mês (mesmos pontos dos gráficos acima). "Desempenho quadrimestral" é a síntese própria M1×6 + M2×4 — ver Notas Metodológicas.</p>'
+      + '<div class="table-wrap"><table class="data-table"><thead><tr>'
+      +   '<th>Mês</th><th>Numerador M1</th><th>Denominador M1</th><th>M1</th><th>Classe M1</th>'
+      +   '<th>Numerador M2</th><th>Denominador M2</th><th>M2 (%)</th><th>Classe M2</th><th>Desempenho quadrimestral</th>'
+      + '</tr></thead><tbody>'+trendHistoryRows+'</tbody></table></div></div>';
 
     var notesList = document.getElementById('notesList');
     if(record.notes && record.notes.length){
