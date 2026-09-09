@@ -1385,6 +1385,29 @@
   // quadrimestre selecionado: alvo = limiar × base (denominador), ritmo
   // médio necessário (mês/semana) pra bater o alvo ao longo do
   // quadrimestre inteiro, e quanto falta + ritmo pro tempo que resta.
+  // Versão compacta do bloco de Meta do quadrimestre, no formato de
+  // comp-card — usada empilhada junto com Numerador/Denominador nas
+  // abas M1/M2 (ver mm-comp-col). Mostra só o essencial: alvo de cada
+  // faixa (Bom/Ótimo) e quanto falta, sem os detalhes de ritmo médio
+  // (que só aparecem no bloco completo da Visão geral).
+  function metaQuadrimestreMiniHTML(base, baseLabel, cardsCfg, preliminar){
+    var rows = cardsCfg.map(function(c){
+      var status = c.faltam<=0
+        ? '<span class="meta-mini-status meta-mini-status-ok">Meta atingida ✓</span>'
+        : '<span class="meta-mini-status">faltam '+fmtInt(c.faltam)+' '+c.unidadeFaltam+'</span>';
+      return '<div class="meta-mini-row">'
+        + '<span class="meta-mini-dot" style="background:'+c.color+'"></span>'
+        + '<div><p class="meta-mini-label">'+c.label+'</p>'
+        +   '<p class="meta-mini-sub">Alvo: '+fmtInt(c.alvo)+' '+c.unidade+' · '+status+'</p></div>'
+        + '</div>';
+    }).join('');
+    return '<div class="card comp-card meta-mini-card">'
+      + '<h4>Meta do quadrimestre'+(preliminar ? ' <span class="pill-preliminar-mini">Preliminar</span>' : '')+'</h4>'
+      + '<div class="meta-mini-rows">'+rows+'</div>'
+      + '<p class="meta-mini-foot">de '+fmtInt(base)+' '+baseLabel+'</p>'
+      + '</div>';
+  }
+
   function calcularMetasQuadrimestre(numerador, denominador, thresholds, unidade, unidadeFaltam){
     var meses = mesesDoQuadrimestre(quadSelecionado.ano, quadSelecionado.qIndex);
     var inicioQuad = new Date(meses[0].getFullYear(), meses[0].getMonth(), 1, 0,0,0,0);
@@ -1673,7 +1696,8 @@
         fmtInt(numM1Gauge)+' atendimentos ÷ '+fmtInt(denM1Gauge)+' pessoas', LEGEND_M1);
     document.getElementById('compRowM1').innerHTML =
         '<div class="card comp-card"><h4>Numerador do M1</h4>'+numM1Bar+'</div>'
-      + '<div class="card comp-card"><h4>Denominador do M1</h4>'+denM1Bar+'</div>';
+      + '<div class="card comp-card"><h4>Denominador do M1</h4>'+denM1Bar+'</div>'
+      + metaQuadrimestreMiniHTML(d.denominadorM1, 'pessoas atendidas', metaM1.cards, metaM1.preliminar);
     renderListsSection('listsM1', m1ListNames());
 
     // ---- Aba M2: gauge + composição do M2 + listas ----
@@ -1684,7 +1708,8 @@
         fmtInt(numM2Gauge)+' compartilhadas ÷ '+fmtInt(denM2Gauge)+' ações', LEGEND_M2);
     document.getElementById('compRowM2').innerHTML =
         '<div class="card comp-card"><h4>Numerador do M2</h4>'+numM2Bar+'</div>'
-      + '<div class="card comp-card"><h4>Denominador do M2</h4>'+denM2Bar+'</div>';
+      + '<div class="card comp-card"><h4>Denominador do M2</h4>'+denM2Bar+'</div>'
+      + metaQuadrimestreMiniHTML(d.denominadorM2, 'ações realizadas', metaM2.cards, metaM2.preliminar);
     renderListsSection('listsM2', m2ListNames());
 
     // Tendência mês a mês: cada ponto é o M1/M2 calculado com sua própria
