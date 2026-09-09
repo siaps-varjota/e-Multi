@@ -268,13 +268,17 @@
     var pessoasAtendidasRows = pessoasLista.map(function(p){ return [p.nome, p.at, p.part, p.at+p.part]; });
 
     // "Sub" M1/M2: pro texto embaixo do gauge ("X atendimentos ÷ Y
-    // pessoas"), usamos a MÉDIA das janelas móveis mensais (o mesmo
-    // conjunto de números usado pra calcular m1/m2 acima) — não a
-    // soma/média dos meses isolados, que não bate com o M1/M2 exibido.
-    var subNumeradorM1 = Math.round(media('numeradorM1'));
-    var subDenominadorM1 = Math.round(media('denominadorM1'));
-    var subNumeradorM2 = Math.round(media('numeradorM2'));
-    var subDenominadorM2 = Math.round(media('denominadorM2'));
+    // pessoas"), nesse modo de média usamos a MÉDIA por mês (soma dos
+    // meses ÷ número de meses), arredondada pra inteiro — não a soma
+    // bruta dos 4 meses — pra ficar coerente com o M1/M2 do gauge, que
+    // também é uma média (dos índices mensais). A soma continua intacta
+    // em numeradorM1/denominadorM1/numeradorM2/denominadorM2 (usada nos
+    // cartões de Composição e nas Metas do quadrimestre).
+    var nMeses = resultadosMensais.length || 1;
+    var subNumeradorM1 = Math.round(soma('numeradorM1') / nMeses);
+    var subDenominadorM1 = Math.round(soma('denominadorM1') / nMeses);
+    var subNumeradorM2 = Math.round(soma('numeradorM2') / nMeses);
+    var subDenominadorM2 = Math.round(soma('denominadorM2') / nMeses);
 
     return {
       equipe: currentEquipes.map(function(e){ return e.label; }).join(' + '),
@@ -849,6 +853,11 @@
     }
     var pessoasLista = Object.keys(pessoasSet).map(function(k){ return pessoasSet[k]; })
       .sort(function(a,b){ return a.nome.localeCompare(b.nome,'pt-BR'); });
+    // Ordena as datas de cada pessoa em ordem cronológica e descobre o
+    // maior número de datas entre todas as pessoas, pra saber quantas
+    // colunas "Data N" a tabela precisa ter (colunas sobrando ficam "—"),
+    // limitado a no máximo 10 colunas (MAX_DATAS_PESSOA_ATENDIDA) — quem
+    // tiver mais de 10 eventos no período só mostra os 10 primeiros.
     var MAX_DATAS_PESSOA_ATENDIDA = 10;
     var maxDatas = 0;
     pessoasLista.forEach(function(p){
@@ -869,6 +878,9 @@
       })
     };
   }
+  // Meses disponíveis pro filtro de "Pessoas atendidas": união dos meses
+  // com dado em Atendimentos e em Participantes Ativ. Coletiva (mais
+  // recente primeiro).
   function monthOptionsParaPessoasAtendidas(){
     var seen = {}, months = [];
     function coletar(name, dateHeader){
@@ -899,3 +911,1146 @@
       latestSheets[name] = {headers: headers, rows: rows.slice(1)};
     });
   }
+
+  function renderListCard(name){
+    // "Pessoas atendidas" é uma lista calculada aqui mesmo no navegador
+    // (dedup de Atendimentos + Participantes Ativ. Coletiva) — ver
+    // pessoasAtendidasParaMeses. Tem filtro de mês PRÓPRIO, independente
+    // do filtro de Mês do topo da página.
+    var isPessoasAtendidas = (name === suffixedName("Pessoas atendidas"));
+    var cached = isPessoasAtendidas
+      ? pessoasAtendidasParaMeses(listMonthFilters[name] || [])
+      : latestSheets[name];
+    if(isPessoasAtendidas) latestSheets[name] = cached;
+    var body;
+    var hasTable = false;
+    if(!cached){
+      body = '<div class="list-placeholder">Não encontramos uma aba chamada "'+escapeHtml(name)+'" na planilha publicada.</div>';
+    } else if(!cached.rows.length && !isPessoasAtendidas){
+      body = '<div class="list-placeholder">Esta lista está vazia.</div>';
+    } else {
+      hasTable = true;
+      var dateColIdx = dateColIndexForList(cached.headers);
+      listDateColIdx[name] = dateColIdx;
+      var theadHtml = '<tr>'+cached.headers.map(function(h){ return '<th>'+escapeHtml(h)+'</th>'; }).join('')+'</tr>';
+      var bodyHtml = cached.rows.map(function(r){
+        return '<tr>'+cached.headers.map(function(h,i){
+          var v = r[i];
+          return '<td>'+escapeHtml(v===undefined||v===null?'':v)+'</td>';
+        }).join('')+'</tr>';
+      }).join('');
+      var colOptionsHtml = '<option value="">Filtrar por coluna…</option>'
+        + cached.headers.map(function(h,i){ return '<option value="'+i+'">'+escapeHtml(h)+'</option>'; }).join('');
+      var filterPairsHtml = [0,1,2].map(function(idx){
+        return '<div class="filter-pair">'
+          + '<select class="filter-col">'+colOptionsHtml+'</select>'
+          + '<div class="ms-wrap filter-val-ms ms-disabled" data-pair-idx="'+idx+'"></div>'
+          + '</div>';
+      }).join('');
+      // Filtro de mês (multisseleção) — aparece quando a lista tem uma
+      // coluna de data reconhecível ("data" ou "data_hora"), ou é a
+      // "Pessoas atendidas" calculada (filtro próprio, ver acima). Fica
+      // na MESMA linha dos filtros de coluna (dentro de .list-filters),
+      // como o primeiro item da fileira.
+      var monthFilterHtml = (dateColIdx >= 0 || isPessoasAtendidas)
+        ? '<div class="list-month-filter"><label class="list-month-filter-label">Mês</label>'
+          + '<div class="ms-wrap" data-month-filter="'+escapeHtml(name)+'"'+(isPessoasAtendidas ? ' data-computed-months="1"' : '')+'></div></div>'
+        : '';
+      body = '<p class="list-meta">'+fmtInt(cached.rows.length)+(cached.rows.length===1?' linha':' linhas')+'</p>'
+        + '<div class="list-filters" data-list-filters="'+escapeHtml(name)+'">'+monthFilterHtml+filterPairsHtml+'</div>'
+        + '<input class="list-search" type="text" placeholder="Filtrar nesta lista…" data-filter-key="'+escapeHtml(name)+'">'
+        + '<div class="table-wrap"><table class="data-table"><thead>'+theadHtml+'</thead><tbody>'+bodyHtml+'</tbody></table></div>';
+    }
+    var pdfBtnHtml = hasTable
+      ? '<button type="button" class="pdf-btn" data-pdf-btn="'+escapeHtml(name)+'">'
+        + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 15h1a1.5 1.5 0 0 0 0-3H9v5"/><path d="M13 12v5h1a2 2 0 0 0 0-5z"/><path d="M18.5 12H17v5"/><path d="M17 14.5h1.3"/></svg>'
+        + '<span>Gerar PDF</span></button>'
+      : '';
+    return '<div class="card list-card" data-list-card="'+escapeHtml(name)+'">'
+      + '<div class="list-card-head"><h4>'+escapeHtml(displayListName(name))+'</h4>'+pdfBtnHtml+'</div>'
+      + body + '</div>';
+  }
+
+  function renderListsSection(containerId, names){
+    var el = document.getElementById(containerId);
+    if(!el) return;
+    el.innerHTML = names.map(renderListCard).join('');
+
+    function applyFilters(card){
+      var listName = card.getAttribute('data-list-card');
+      var cached = latestSheets[listName];
+      var dateColIdx = listDateColIdx[listName];
+      var selectedMonths = listMonthFilters[listName] || [];
+      var textInput = card.querySelector('.list-search');
+      var term = textInput ? textInput.value.trim().toLowerCase() : '';
+      var activeFilters = [];
+      card.querySelectorAll('.filter-pair').forEach(function(pair){
+        var colSelect = pair.querySelector('.filter-col');
+        var valWrap = pair.querySelector('.filter-val-ms');
+        var colIdx = colSelect && colSelect.value !== '' ? parseInt(colSelect.value, 10) : null;
+        var vals = (valWrap && valWrap._msInstance) ? valWrap._msInstance.getSelected() : [];
+        if(colIdx !== null && vals.length){ activeFilters.push({colIdx:colIdx, vals:vals}); }
+      });
+      var visibleCount = 0;
+      card.querySelectorAll('tbody tr').forEach(function(tr, rowIdx){
+        var matchesText = !term || tr.textContent.toLowerCase().indexOf(term) !== -1;
+        var matchesCols = activeFilters.every(function(f){
+          var cell = tr.children[f.colIdx];
+          return cell && f.vals.indexOf(cell.textContent.trim()) >= 0;
+        });
+        var matchesMonth = true;
+        if(selectedMonths.length && dateColIdx != null && dateColIdx >= 0){
+          var raw = cached && cached.rows[rowIdx] ? cached.rows[rowIdx][dateColIdx] : null;
+          var d = parseBRDate(raw);
+          var mv = d ? monthOptionValue(d) : null;
+          matchesMonth = !!mv && selectedMonths.indexOf(mv) >= 0;
+        }
+        var visible = matchesText && matchesCols && matchesMonth;
+        tr.style.display = visible ? '' : 'none';
+        if(visible) visibleCount++;
+      });
+      // Contagem de linhas mostrada acima da lista: reflete o resultado
+      // depois de aplicar TODOS os filtros ativos (mês, colunas e busca),
+      // não o total bruto da lista.
+      var metaEl = card.querySelector('.list-meta');
+      if(metaEl) metaEl.textContent = fmtInt(visibleCount) + (visibleCount === 1 ? ' linha' : ' linhas');
+    }
+
+    el.querySelectorAll('[data-month-filter]').forEach(function(container){
+      var name = container.getAttribute('data-month-filter');
+      if(container.getAttribute('data-computed-months') === '1'){
+        // "Pessoas atendidas": filtro de mês próprio — recalcula a
+        // dedup (Atendimentos + Participantes Ativ. Coletiva) na hora,
+        // em vez de só esconder/mostrar linhas de uma tabela fixa.
+        var optsCalc = monthOptionsParaPessoasAtendidas();
+        var validCalc = optsCalc.map(function(o){ return o.value; });
+        listMonthFilters[name] = (listMonthFilters[name] || []).filter(function(v){
+          return validCalc.indexOf(v) >= 0;
+        });
+        var calcMs = createMultiSelect(container, {
+          placeholder: 'Todos os meses', multi: true, search: optsCalc.length > 8, showTags: true,
+          onChange: function(keys){
+            listMonthFilters[name] = keys;
+            var card = container.closest('.list-card');
+            var novoCached = pessoasAtendidasParaMeses(keys);
+            latestSheets[name] = novoCached;
+            var tbody = card.querySelector('tbody');
+            if(tbody){
+              tbody.innerHTML = novoCached.rows.map(function(r){
+                return '<tr>'+novoCached.headers.map(function(h,i){
+                  var v = r[i];
+                  return '<td>'+escapeHtml(v===undefined||v===null?'':v)+'</td>';
+                }).join('')+'</tr>';
+              }).join('');
+            }
+            applyFilters(card);
+          }
+        });
+        calcMs.setOptions(optsCalc);
+        calcMs.setSelected(listMonthFilters[name]);
+        applyFilters(container.closest('.list-card'));
+        return;
+      }
+      var cached = latestSheets[name];
+      var dateColIdx = listDateColIdx[name];
+      if(!cached || dateColIdx == null || dateColIdx < 0) return;
+      var opts = monthOptionsForList(cached, dateColIdx);
+      var validValues = opts.map(function(o){ return o.value; });
+      // Mantém só a seleção anterior que ainda faz sentido (evita "mês
+      // fantasma" depois que os dados são atualizados).
+      listMonthFilters[name] = (listMonthFilters[name] || []).filter(function(v){
+        return validValues.indexOf(v) >= 0;
+      });
+      var monthMs = createMultiSelect(container, {
+        placeholder: 'Todos os meses', multi: true, search: opts.length > 8, showTags: true,
+        onChange: function(keys){
+          listMonthFilters[name] = keys;
+          applyFilters(container.closest('.list-card'));
+        }
+      });
+      monthMs.setOptions(opts);
+      monthMs.setSelected(listMonthFilters[name]);
+      applyFilters(container.closest('.list-card'));
+    });
+
+    el.querySelectorAll('[data-filter-key]').forEach(function(input){
+      input.addEventListener('input', function(){
+        applyFilters(input.closest('.list-card'));
+      });
+    });
+
+    el.querySelectorAll('.filter-pair').forEach(function(pair){
+      var colSelect = pair.querySelector('.filter-col');
+      var valWrap = pair.querySelector('.filter-val-ms');
+      // Multisseleção de valores ("Todos os valores"): fica desabilitada
+      // (opacidade + sem clique, via .ms-disabled) até uma coluna ser
+      // escolhida no select ao lado. A instância fica pendurada no
+      // próprio elemento (._msInstance) pra applyFilters conseguir ler
+      // os valores marcados sem precisar de um estado global à parte.
+      var msInst = createMultiSelect(valWrap, {
+        placeholder: 'Todos os valores', multi: true, search: true, showTags: true,
+        onChange: function(){ applyFilters(pair.closest('.list-card')); }
+      });
+      valWrap._msInstance = msInst;
+
+      colSelect.addEventListener('change', function(){
+        var card = colSelect.closest('.list-card');
+        var listName = card.querySelector('[data-list-filters]').getAttribute('data-list-filters');
+        var colIdx = colSelect.value !== '' ? parseInt(colSelect.value, 10) : null;
+        if(colIdx === null){
+          msInst.setOptions([]);
+          msInst.setSelected([]);
+          valWrap.classList.add('ms-disabled');
+        } else {
+          var cached = latestSheets[listName];
+          var seen = {};
+          var values = [];
+          (cached ? cached.rows : []).forEach(function(r){
+            var v = r[colIdx];
+            v = (v===undefined||v===null) ? '' : String(v).trim();
+            if(v && !seen[v]){ seen[v] = true; values.push(v); }
+          });
+          values.sort(function(a,b){ return a.localeCompare(b, 'pt-BR'); });
+          msInst.setOptions(values.map(function(v){ return {value:v, label:v}; }));
+          msInst.setSelected([]);
+          valWrap.classList.remove('ms-disabled');
+        }
+        applyFilters(card);
+      });
+    });
+
+    el.querySelectorAll('[data-pdf-btn]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        gerarPdfLista(btn.getAttribute('data-pdf-btn'), btn.closest('.list-card'), btn);
+      });
+    });
+  }
+
+  // ---------- Exportar lista em PDF ----------
+  // Gera um PDF "elegante" (faixa de cabeçalho colorida + tabela) a partir
+  // do que está REALMENTE visível na tela: lê o <thead>/<tbody> do próprio
+  // card já filtrado (busca + filtros de coluna + filtro de mês), em vez
+  // de reconstruir a partir de latestSheets — assim o PDF bate 100% com o
+  // que os filtros ativos estão mostrando, sem duplicar a lógica deles.
+  function monthValueToLabel(v){
+    var parts = String(v).split('-');
+    return monthOptionLabel(new Date(+parts[0], +parts[1]-1, 1));
+  }
+  function slugifyFileName(s){
+    return normalizeText(s).replace(/[^A-Z0-9]+/g,'_').replace(/^_+|_+$/g,'');
+  }
+  function gerarPdfLista(listName, card, btn){
+    if(!card) return;
+    var jspdfNs = window.jspdf;
+    if(!jspdfNs || !jspdfNs.jsPDF){
+      alert('Não foi possível carregar a biblioteca de geração de PDF (verifique a conexão com a internet) — tente novamente.');
+      return;
+    }
+    var headers = Array.prototype.map.call(card.querySelectorAll('thead th'), function(th){ return th.textContent.trim(); });
+    var todasLinhas = card.querySelectorAll('tbody tr');
+    var linhasVisiveis = Array.prototype.filter.call(todasLinhas, function(tr){ return tr.style.display !== 'none'; })
+      .map(function(tr){ return Array.prototype.map.call(tr.children, function(td){ return td.textContent.trim(); }); });
+    if(!linhasVisiveis.length){
+      alert('Nenhuma linha visível com os filtros atuais dessa lista — ajuste os filtros antes de gerar o PDF.');
+      return;
+    }
+
+    // Monta o resumo dos filtros ativos nesta lista, pra registrar no
+    // cabeçalho do PDF exatamente o que foi aplicado.
+    var filtrosAtivos = [];
+    var searchInput = card.querySelector('.list-search');
+    if(searchInput && searchInput.value.trim()) filtrosAtivos.push('Busca: "'+searchInput.value.trim()+'"');
+    var mesesSelecionados = listMonthFilters[listName] || [];
+    if(mesesSelecionados.length){
+      filtrosAtivos.push('Mês: '+mesesSelecionados.map(monthValueToLabel).join(', '));
+    }
+    card.querySelectorAll('.filter-pair').forEach(function(pair){
+      var colSelect = pair.querySelector('.filter-col');
+      var valWrap = pair.querySelector('.filter-val-ms');
+      var colIdx = colSelect && colSelect.value !== '' ? parseInt(colSelect.value, 10) : null;
+      var vals = (valWrap && valWrap._msInstance) ? valWrap._msInstance.getSelected() : [];
+      if(colIdx !== null && vals.length){
+        filtrosAtivos.push(headers[colIdx]+': '+vals.join(', '));
+      }
+    });
+
+    var totalLinhas = todasLinhas.length;
+    var nomeExibicao = displayListName(listName);
+    var equipeLabel = currentEquipes.map(function(e){ return e.label; }).join(' + ');
+
+    var doc = new jspdfNs.jsPDF({orientation: headers.length > 6 ? 'landscape' : 'portrait', unit:'pt', format:'a4'});
+    var pageWidth = doc.internal.pageSize.getWidth();
+    var pageHeight = doc.internal.pageSize.getHeight();
+    var margin = 28;
+
+    // ---- Faixa de cabeçalho ----
+    doc.setFillColor(21,63,53);
+    doc.rect(0,0,pageWidth,64,'F');
+    doc.setTextColor(238,243,234);
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(15);
+    doc.text('Painel eMulti — Indicadores M1 e M2', margin, 26);
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(10);
+    doc.setTextColor(159,192,174);
+    doc.text(equipeLabel, margin, 42);
+    doc.setFontSize(8.5);
+    doc.text('Gerado em '+new Date().toLocaleString('pt-BR'), pageWidth-margin, 26, {align:'right'});
+
+    // ---- Título da lista + resumo dos filtros ----
+    var y = 84;
+    doc.setTextColor(21,63,53);
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(13);
+    doc.text(nomeExibicao, margin, y);
+    y += 16;
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(9);
+    doc.setTextColor(81,96,90);
+    if(filtrosAtivos.length){
+      filtrosAtivos.forEach(function(linha){
+        var quebradas = doc.splitTextToSize('• '+linha, pageWidth-margin*2);
+        doc.text(quebradas, margin, y);
+        y += 12*quebradas.length;
+      });
+    } else {
+      doc.text('Sem filtros aplicados — exibindo todos os registros.', margin, y);
+      y += 12;
+    }
+    doc.text(fmtInt(linhasVisiveis.length)+' de '+fmtInt(totalLinhas)+(totalLinhas===1?' linha no total.':' linhas no total.'), margin, y);
+    y += 10;
+
+    doc.autoTable({
+      startY: y+6,
+      head: [headers],
+      body: linhasVisiveis,
+      theme: 'grid',
+      margin: {left:margin, right:margin, bottom:34},
+      styles: {font:'helvetica', fontSize: headers.length > 9 ? 7 : (headers.length > 6 ? 7.8 : 8.6), cellPadding:4, overflow:'linebreak', textColor:[19,36,31], lineColor:[220,228,214], lineWidth:0.5},
+      headStyles: {fillColor:[21,63,53], textColor:255, fontStyle:'bold'},
+      alternateRowStyles: {fillColor:[241,244,238]},
+      didDrawPage: function(){
+        doc.setFontSize(8);
+        doc.setTextColor(150,158,152);
+        doc.text('Página '+doc.internal.getCurrentPageInfo().pageNumber, pageWidth-margin, pageHeight-14, {align:'right'});
+      }
+    });
+
+    var arquivo = slugifyFileName(nomeExibicao)+'__'+slugifyFileName(equipeLabel)+'__'+slugifyFileName(new Date().toLocaleDateString('pt-BR'))+'.pdf';
+    doc.save(arquivo);
+  }
+
+  // ---------- Gauge ----------
+  function polar(cx,cy,r,angleDeg){
+    var a = angleDeg * Math.PI/180;
+    return {x: cx + r*Math.cos(a), y: cy - r*Math.sin(a)};
+  }
+  function arcPath(cx,cy,r,startAngle,endAngle){
+    var p1 = polar(cx,cy,r,startAngle);
+    var p2 = polar(cx,cy,r,endAngle);
+    var large = Math.abs(startAngle-endAngle) > 180 ? 1 : 0;
+    return "M "+p1.x+" "+p1.y+" A "+r+" "+r+" 0 "+large+" 1 "+p2.x+" "+p2.y;
+  }
+  function buildGauge(value, domainMax, bands, gaugeId){
+    var cx=115,cy=122,r=92,thick=16;
+    var bandsSvg = bands.map(function(b){
+      var a1 = 180 - (b.from/domainMax)*180;
+      var a2 = 180 - (b.to/domainMax)*180;
+      return '<path d="'+arcPath(cx,cy,r,a1,a2)+'" stroke="'+b.color+'" stroke-width="'+thick+'" fill="none" stroke-linecap="round"/>';
+    }).join('');
+    var frac = (value===null || value===undefined || isNaN(value)) ? 0 : Math.max(0, Math.min(1, value/domainMax));
+    var targetAngle = 180 - frac*180;
+    var needleRotation = 180 - targetAngle; // graus a girar o ponteiro (que nasce apontando p/ 0)
+    var needleLen = r - thick/2 - 6;
+    var tipBase = polar(cx,cy,needleLen,180);
+    // Ponteiro é desenhado sempre apontando para "0" (esquerda) e a rotação até
+    // o valor real é feita via CSS puro (animation + custom property), em vez
+    // de depender de JS aplicar o transform depois — isso evita que o ponteiro
+    // fique "zerado" caso a atualização via JS não rode a tempo/corretamente.
+    var needleSvg = '<g id="'+gaugeId+'" class="gauge-needle" style="transform-origin:'+cx+'px '+cy+'px;--target-angle:'+needleRotation+'deg;">'
+      + '<line x1="'+cx+'" y1="'+cy+'" x2="'+tipBase.x+'" y2="'+tipBase.y+'" stroke="#13241F" stroke-width="3" stroke-linecap="round"/>'
+      + '<circle cx="'+cx+'" cy="'+cy+'" r="5.5" fill="#13241F"/></g>';
+    return '<svg class="gauge-svg" viewBox="0 0 230 148">'+bandsSvg+needleSvg+'</svg>';
+  }
+  function animateGauges(){
+    // Mantida como no-op por compatibilidade com as chamadas existentes em
+    // renderDashboard(); a animação agora é 100% CSS (ver .gauge-needle).
+  }
+
+  var CLASS_BANDS_M1 = [
+    {from:0,to:1,color:arcHex("Regular")},
+    {from:1,to:2,color:arcHex("Suficiente")},
+    {from:2,to:3,color:arcHex("Bom")},
+    {from:3,to:4,color:arcHex("Ótimo")}
+  ];
+  var CLASS_BANDS_M2 = [
+    {from:0,to:1,color:arcHex("Regular")},
+    {from:1,to:2.5,color:arcHex("Suficiente")},
+    {from:2.5,to:5,color:arcHex("Bom")},
+    {from:5,to:8,color:arcHex("Ótimo")}
+  ];
+  var CLASS_BANDS_NOTA = [
+    {from:0,to:2.5,color:arcHex("Regular")},
+    {from:2.5,to:5,color:arcHex("Suficiente")},
+    {from:5,to:7.5,color:arcHex("Bom")},
+    {from:7.5,to:10,color:arcHex("Ótimo")}
+  ];
+
+  function gaugeLegendHTML(items){
+    return '<div class="gauge-legend">' + items.map(function(it){
+      return '<span><i style="background:'+it.color+'"></i>'+it.label+' '+it.cond+'</span>';
+    }).join('') + '</div>';
+  }
+  var LEGEND_M1 = [
+    {label:'Ótimo',      cond:'&gt; 3',           color:arcHex('Ótimo')},
+    {label:'Bom',        cond:'&gt; 2 e ≤ 3',     color:arcHex('Bom')},
+    {label:'Suficiente', cond:'&gt; 1 e ≤ 2',     color:arcHex('Suficiente')},
+    {label:'Regular',    cond:'≤ 1',              color:arcHex('Regular')}
+  ];
+  var LEGEND_M2 = [
+    {label:'Ótimo',      cond:'&gt; 5%',              color:arcHex('Ótimo')},
+    {label:'Bom',        cond:'&gt; 2,5% e ≤ 5%',     color:arcHex('Bom')},
+    {label:'Suficiente', cond:'&gt; 1% e ≤ 2,5%',     color:arcHex('Suficiente')},
+    {label:'Regular',    cond:'≤ 1%',                 color:arcHex('Regular')}
+  ];
+  var LEGEND_NOTA = [
+    {label:'Ótimo',      cond:'&gt; 7,5',            color:arcHex('Ótimo')},
+    {label:'Bom',        cond:'≥ 5 e ≤ 7,5',         color:arcHex('Bom')},
+    {label:'Suficiente', cond:'&gt; 2,5 e &lt; 5',   color:arcHex('Suficiente')},
+    {label:'Regular',    cond:'≤ 2,5',               color:arcHex('Regular')}
+  ];
+
+  function gaugeCardHTML(title, formula, value, domainMax, bands, gaugeId, valueHtml, classLabel, note, legend){
+    return '<div class="card gauge-card">'
+      + '<div class="gauge-header"><h3>'+title+'</h3><p class="formula">'+formula+'</p></div>'
+      + buildGauge(value, domainMax, bands, gaugeId)
+      + '<div class="gauge-value">'+valueHtml+'</div>'
+      + '<span class="pill" style="background:'+pillHex(classLabel)+'">'+(classLabel||'—')+'</span>'
+      + (note ? '<p class="gauge-note">'+note+'</p>' : '')
+      + (legend ? gaugeLegendHTML(legend) : '')
+      + '</div>';
+  }
+
+  // ---------- Meta do quadrimestre ----------
+  // Ícone simples de alvo/meta usado no cabeçalho de cada bloco.
+  var METAS_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">'
+    + '<circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4.3"/><circle cx="12" cy="12" r="1"/></svg>';
+
+  function fmtDecMeta(n){
+    return (Math.round(n*10)/10).toLocaleString('pt-BR', {minimumFractionDigits:1, maximumFractionDigits:1});
+  }
+
+  // Um card de meta (ex.: "Bom" ou "Ótimo"): alvo a bater, ritmo médio
+  // necessário até o fim do quadrimestre e quanto ainda falta.
+  function metaCardHTML(cfg){
+    var subLines =
+        '<p class="meta-card-sub">Média/mês: '+fmtDecMeta(cfg.mediaMes)+'</p>'
+      + '<p class="meta-card-sub">Média/semana: '+fmtDecMeta(cfg.mediaSemana)+'</p>';
+    var faltamHtml;
+    if(cfg.faltam<=0){
+      faltamHtml = '<p class="meta-card-done">Meta já atingida ✓</p>';
+    } else if(cfg.semanasRestantes<=0){
+      faltamHtml = '<p class="meta-card-faltam">Faltam: '+fmtInt(cfg.faltam)+' '+cfg.unidadeFaltam+' (quadrimestre encerrado)</p>';
+    } else {
+      faltamHtml = '<p class="meta-card-faltam">Faltam: '+fmtInt(cfg.faltam)+' '+cfg.unidadeFaltam+'</p>'
+        + '<p class="meta-card-sub">Média/semana: '+fmtDecMeta(cfg.mediaSemanaFaltam)+'</p>';
+    }
+    return '<div class="meta-card">'
+      + '<h4 style="color:'+cfg.color+'">'+cfg.label+'</h4>'
+      + '<div class="meta-card-value" style="color:'+cfg.color+'">'+fmtInt(cfg.alvo)+' <span>'+cfg.unidade+'</span></div>'
+      + subLines + faltamHtml
+      + '</div>';
+  }
+
+  // Bloco completo de meta do quadrimestre para um indicador (M1 ou M2):
+  // cabeçalho com a base de cálculo + selo "Preliminar" (enquanto o
+  // quadrimestre ainda não terminou) e os cards de cada faixa-alvo.
+  function metaQuadrimestreHTML(titulo, base, baseLabel, cardsCfg, preliminar){
+    var cardsHtml = cardsCfg.map(metaCardHTML).join('');
+    return '<div class="meta-quad-wrap">'
+      + '<div class="meta-quad-head">'
+      +   '<span class="meta-icon">'+METAS_ICON_SVG+'</span>'
+      +   '<div class="meta-quad-titles"><h3>'+titulo+'</h3><p>de <b>'+fmtInt(base)+'</b> '+baseLabel+'</p></div>'
+      +   (preliminar ? '<span class="pill-preliminar"><i></i>Preliminar</span>' : '')
+      + '</div>'
+      + '<div class="meta-cards">'+cardsHtml+'</div>'
+      + '</div>';
+  }
+
+  // Calcula os cards de meta (Bom/Ótimo) de um indicador para o
+  // quadrimestre selecionado: alvo = limiar × base (denominador), ritmo
+  // médio necessário (mês/semana) pra bater o alvo ao longo do
+  // quadrimestre inteiro, e quanto falta + ritmo pro tempo que resta.
+  function calcularMetasQuadrimestre(numerador, denominador, thresholds, unidade, unidadeFaltam){
+    var meses = mesesDoQuadrimestre(quadSelecionado.ano, quadSelecionado.qIndex);
+    var inicioQuad = new Date(meses[0].getFullYear(), meses[0].getMonth(), 1, 0,0,0,0);
+    var fimQuad = new Date(meses[3].getFullYear(), meses[3].getMonth()+1, 0, 23,59,59,999);
+    var hoje = new Date();
+    var diasQuad = Math.round((fimQuad-inicioQuad)/86400000)+1;
+    var semanasQuad = diasQuad/7;
+    var diasRestantes = Math.max(0, Math.round((fimQuad-hoje)/86400000));
+    var semanasRestantes = diasRestantes/7;
+    var cards = thresholds.map(function(t){
+      var alvo = Math.ceil(t.value*denominador);
+      var faltam = Math.max(0, alvo-(numerador||0));
+      return {
+        label: t.label, color: t.color, unidade: unidade, unidadeFaltam: unidadeFaltam || unidade,
+        alvo: alvo,
+        mediaMes: alvo/4,
+        mediaSemana: alvo/semanasQuad,
+        faltam: faltam,
+        semanasRestantes: semanasRestantes,
+        mediaSemanaFaltam: semanasRestantes>0 ? faltam/semanasRestantes : 0
+      };
+    });
+    return {cards: cards, preliminar: hoje < fimQuad};
+  }
+
+  var M1_META_THRESHOLDS = [
+    {value:2,   label:'Bom (M1 ≥ 2,00)',   color:'var(--arc-bom)'},
+    {value:3,   label:'Ótimo (M1 ≥ 3,00)', color:'var(--arc-otimo)'}
+  ];
+  var M2_META_THRESHOLDS = [
+    {value:0.025, label:'Bom (M2 ≥ 2,50%)',  color:'var(--arc-bom)'},
+    {value:0.05,  label:'Ótimo (M2 ≥ 5,00%)', color:'var(--arc-otimo)'}
+  ];
+
+  // ---------- Composition bars ----------
+  function stackbar(segments, total){
+    var t = total || segments.reduce(function(s,x){return s+(x.value||0);},0);
+    var bars = segments.map(function(s){
+      var pct = t>0 ? (s.value/t*100) : 0;
+      return '<div class="seg" style="width:'+pct+'%;background:'+s.color+'"></div>';
+    }).join('');
+    var legend = segments.map(function(s){
+      return '<span class="legend-item"><i style="background:'+s.color+'"></i>'+s.label+' ('+fmtInt(s.value)+')</span>';
+    }).join('');
+    return '<div class="stackbar">'+bars+'</div><div class="legend">'+legend+'</div>';
+  }
+
+  // ---------- Sparkline ----------
+  // points: [{y, label, value}] — "value" (opcional) é o texto já formatado
+  // (ex.: "2,45" ou "5,20%") mostrado acima de cada ponto da linha.
+  function sparkline(points, color, opts){
+    opts = opts || {};
+    if(points.length < 2) return '<p class="footnote">Ainda não há leituras suficientes para mostrar a tendência.</p>';
+    var hasAvg = !!opts.quadAvg;
+    var W=320, padX=14, padTop=20;
+    // Com linha de média, reserva uma faixa a mais (avgLabelGap) entre o
+    // fundo da área de plotagem e a linha de rótulos dos meses, só pro
+    // valor da média caber embaixo da linha tracejada sem encostar em nada.
+    var plotH = hasAvg ? 54 : 66;
+    var plotBottom = padTop + plotH;
+    var avgLabelGap = hasAvg ? 22 : 0;
+    var axisY = plotBottom + avgLabelGap + 10;
+    var H = axisY + 4;
+
+    var vals = points.map(function(p){return p.y;});
+    var min = Math.min.apply(null, vals), max = Math.max.apply(null, vals);
+    if(min===max){ min = min - 1; max = max + 1; }
+    var stepX = (W-2*padX)/(points.length-1);
+    var coords = points.map(function(p,i){
+      var x = padX + i*stepX;
+      var y = plotBottom - ((p.y-min)/(max-min))*(plotBottom-padTop);
+      return {x:x,y:y};
+    });
+    var path = coords.map(function(c,i){ return (i===0?"M ":"L ")+c.x+" "+c.y; }).join(" ");
+    // Pontos e rótulo numérico de cada mês: coloridos pela classificação
+    // (Regular/Suficiente/Bom/Ótimo) DAQUELE valor específico — a linha
+    // que os conecta continua na cor original do gráfico (só os valores
+    // ganham a cor da faixa).
+    // Cada mês vira um <g class="tp-point" data-month="..."> com um
+    // círculo maior e invisível (área de toque/hover mais fácil de
+    // acertar), o ponto, o valor e o rótulo do mês embaixo — tudo junto
+    // pra dar/tirar destaque em bloco ao passar o mouse ou clicar (ver
+    // setupTrendInteractivity), inclusive no card do outro indicador.
+    var pointsSvg = points.map(function(p,i){
+      var tone = opts.classify ? (CLASS_COLOR[opts.classify(p.y)] || color) : color;
+      var ly = Math.max(9, coords[i].y - 8);
+      var valTxt = (p.value!==undefined && p.value!==null && p.value!=='') ? '<text class="tp-val" x="'+coords[i].x+'" y="'+ly+'" font-size="9.5" font-weight="600" fill="'+tone+'" text-anchor="middle">'+escapeHtml(p.value)+'</text>' : '';
+      return '<g class="tp-point" data-month="'+escapeHtml(p.label)+'">'
+        + '<circle class="tp-hit" cx="'+coords[i].x+'" cy="'+coords[i].y+'" r="9" fill="transparent"/>'
+        + '<circle class="tp-dot" cx="'+coords[i].x+'" cy="'+coords[i].y+'" r="3.2" fill="'+tone+'"/>'
+        + valTxt
+        + '<text class="tp-axis" x="'+coords[i].x+'" y="'+axisY+'" font-size="9" fill="var(--ink-soft)" text-anchor="middle">'+p.label+'</text>'
+        + '</g>';
+    }).join("");
+
+    // "Montanha" de média de cada quadrimestre (Jan–Abr / Mai–Ago /
+    // Set–Dez): agrupa os pontos exibidos que pertencem ao mesmo
+    // quadrimestre (cada ponto já traz p.quadKey/p.quadLabel) e desenha,
+    // atrás da linha de dados, um bloco reto (sem cantos arredondados) do
+    // fundo do gráfico até a altura da média DESSES pontos — 30% opaco
+    // (70% transparente) — com uma linha tracejada marcando o topo e o
+    // valor logo ABAIXO dela (dentro da faixa reservada em avgLabelGap,
+    // longe da linha de dados, dos rótulos de valor e da linha de meses).
+    // A cor (área + linha + texto) segue a classificação da média
+    // (Regular/Suficiente/Bom/Ótimo), igual às outras faixas do painel.
+    var avgAreaSvg = '', avgLineSvg = '';
+    if(hasAvg){
+      var groups = [];
+      points.forEach(function(p,i){
+        var last = groups[groups.length-1];
+        if(last && last.key === p.quadKey){ last.idx.push(i); }
+        else { groups.push({key:p.quadKey, label:p.quadLabel, idx:[i]}); }
+      });
+      groups.forEach(function(g){
+        var ys = g.idx.map(function(i){ return points[i].y; });
+        var avg = ys.reduce(function(a,b){ return a+b; }, 0)/ys.length;
+        var avgY = plotBottom - ((avg-min)/(max-min))*(plotBottom-padTop);
+        var x1 = coords[g.idx[0]].x, x2 = coords[g.idx[g.idx.length-1]].x;
+        if(g.idx.length===1){ x1 -= 12; x2 += 12; }
+        x1 = Math.max(padX-4, x1); x2 = Math.min(W-padX+4, x2);
+        var midX = (x1+x2)/2;
+        var textY = Math.min(avgY + 16, plotBottom + avgLabelGap - 4);
+        var faixa = opts.classify ? opts.classify(avg) : null;
+        var tone = CLASS_COLOR[faixa] || '#7A5A2E';
+        var valTxt = g.label+': '+fmtDec(avg,2)+(opts.suffix||'');
+        var chipW = Math.max(34, valTxt.length*4.6+8);
+        var chip = '<rect x="'+(midX-chipW/2)+'" y="'+(textY-9)+'" width="'+chipW+'" height="12" rx="3" fill="var(--surface)" opacity="0.92"/>';
+        avgAreaSvg += '<polygon points="'+x1+','+plotBottom+' '+x1+','+avgY+' '+x2+','+avgY+' '+x2+','+plotBottom+'" fill="'+tone+'" opacity="0.3"/>';
+        avgLineSvg += '<line x1="'+x1+'" y1="'+avgY+'" x2="'+x2+'" y2="'+avgY+'" stroke="'+tone+'" stroke-width="1.3" stroke-dasharray="3 3" opacity="0.9"/>'
+          + chip
+          + '<text x="'+midX+'" y="'+textY+'" font-size="8" font-weight="700" fill="'+tone+'" text-anchor="middle">'+escapeHtml(valTxt)+'</text>';
+      });
+    }
+
+    return '<svg class="spark-svg trend-interactive" viewBox="0 0 '+W+' '+(H+14)+'">'
+      + avgAreaSvg
+      + '<path d="'+path+'" fill="none" stroke="'+color+'" stroke-width="2"/>' + pointsSvg
+      + avgLineSvg + '</svg>';
+  }
+
+  // ---------- Interatividade da aba Tendência ----------
+  // Ao passar o mouse (ou clicar/tocar, no celular) em cima de um ponto de
+  // qualquer um dos dois gráficos (M1 ou M2), destaca em AMBOS os
+  // containers só o ponto daquele mês: apaga (opacidade 0) o número dos
+  // demais pontos e deixa o ponto/rótulo dos outros meses esmaecido, nos
+  // dois gráficos ao mesmo tempo — permitindo comparar M1 e M2 do mesmo
+  // mês lado a lado. Clique/toque "fixa" o destaque (pra quem não tem
+  // hover); clicar de novo no mesmo ponto, ou fora dos gráficos, desfaz.
+  function setupTrendInteractivity(){
+    var svgs = document.querySelectorAll('.trend-interactive');
+    if(!svgs.length) return;
+    var pinnedMonth = null;
+
+    function applyHighlight(month){
+      svgs.forEach(function(svg){
+        svg.classList.toggle('tp-hover-active', !!month);
+        svg.querySelectorAll('.tp-point').forEach(function(pt){
+          pt.classList.toggle('tp-active', !!month && pt.getAttribute('data-month') === month);
+        });
+      });
+    }
+
+    svgs.forEach(function(svg){
+      svg.querySelectorAll('.tp-point').forEach(function(pt){
+        var month = pt.getAttribute('data-month');
+        pt.addEventListener('mouseenter', function(){
+          if(!pinnedMonth) applyHighlight(month);
+        });
+        pt.addEventListener('mouseleave', function(){
+          if(!pinnedMonth) applyHighlight(null);
+        });
+        pt.addEventListener('click', function(e){
+          e.stopPropagation();
+          pinnedMonth = (pinnedMonth === month) ? null : month;
+          applyHighlight(pinnedMonth);
+        });
+      });
+    });
+
+    document.addEventListener('click', function(){
+      if(pinnedMonth){
+        pinnedMonth = null;
+        applyHighlight(null);
+      }
+    });
+  }
+
+  // ---------- Tabs ----------
+  var FILTER_BAR_TABS = {geral:true, m1:true, m2:true, tendencia:true};
+  document.querySelectorAll('.tab').forEach(function(btn){
+    btn.addEventListener('click', function(){
+      document.querySelectorAll('.tab').forEach(function(b){ b.classList.toggle('active', b===btn); });
+      var target = btn.getAttribute('data-tab');
+      document.querySelectorAll('.tab-panel').forEach(function(p){
+        p.classList.toggle('active', p.id === 'tab'+target.charAt(0).toUpperCase()+target.slice(1));
+      });
+      document.getElementById('filterBar').classList.toggle('hidden', !FILTER_BAR_TABS[target]);
+    });
+  });
+
+  // ---------- Render ----------
+  function renderDashboard(record, serieTendencia){
+    serieTendencia = serieTendencia || [];
+    document.getElementById('statusState').style.display = 'none';
+    populateQuadSelect();
+    document.getElementById('topEquipe').textContent = record.equipe || '—';
+    document.getElementById('topPeriodo').textContent = record.periodo
+      ? 'Período: ' + record.periodo.inicio + ' a ' + record.periodo.fim
+      : '';
+    document.getElementById('topUpdated').textContent = record.error
+      ? 'Falha na última leitura'
+      : 'Atualizado em ' + fmtDate(record.timestamp);
+
+    if(record.error){
+      document.getElementById('gaugeRow').innerHTML =
+        '<div class="card" style="flex:1;"><p style="color:var(--pill-regular);margin:0;">Não encontramos os indicadores M1 e M2 nesta planilha. Confira se o link publicado é o correto.</p></div>';
+      document.getElementById('compRow').innerHTML = '';
+      return;
+    }
+
+    var d = record.data;
+
+    // ---- Composição (4 cartões: Numerador/Denominador de M1 e M2) ----
+    var numM1Bar = stackbar([
+        {label:'Atendimentos individuais', value:d.atendimentosIndividuais, color:'#153F35'},
+        {label:'Participações coletivas', value:d.participacoesColetivas, color:'#C68A3D'}
+      ], d.numeradorM1);
+    var denM1Bar = stackbar([
+        {label:'Pessoas atendidas', value:d.denominadorM1, color:'#153F35'}
+      ], d.denominadorM1);
+    var numM2Bar = stackbar([
+        {label:'Atividades coletivas compartilhadas', value:d.atividadesCompartilhadas, color:'#153F35'},
+        {label:'Reuniões compartilhadas', value:d.reunioesCompartilhadas, color:'#C68A3D'}
+      ], d.numeradorM2);
+    var denM2Bar = stackbar([
+        {label:'Atendimentos individuais (base)', value:(d.denominadorM2!=null && d.numeradorM2!=null) ? d.denominadorM2-d.numeradorM2 : d.atendimentosIndividuais, color:'#CBD3C4'},
+        {label:'Atividades coletivas compartilhadas', value:d.atividadesCompartilhadas, color:'#153F35'},
+        {label:'Reuniões compartilhadas', value:d.reunioesCompartilhadas, color:'#C68A3D'}
+      ], d.denominadorM2);
+
+    document.getElementById('compRow').innerHTML =
+        '<div class="card comp-card"><h4>Numerador do M1</h4>'+numM1Bar+'</div>'
+      + '<div class="card comp-card"><h4>Denominador do M1</h4>'+denM1Bar+'</div>'
+      + '<div class="card comp-card"><h4>Numerador do M2</h4>'+numM2Bar+'</div>'
+      + '<div class="card comp-card"><h4>Denominador do M2</h4>'+denM2Bar+'</div>';
+
+    // ---- Visão geral: 3 gauges (M1, M2, Desempenho) ----
+    document.getElementById('gaugeRow').innerHTML =
+        gaugeCardHTML('M1 — Média de atendimentos por pessoa',
+          'Atendimentos individuais + coletivos ÷ pessoas atendidas',
+          d.m1, 4, CLASS_BANDS_M1, 'needle-geral-m1', fmtDec(d.m1,2), d.classificacaoM1,
+          fmtInt(d.subNumeradorM1)+' atendimentos ÷ '+fmtInt(d.subDenominadorM1)+' pessoas', LEGEND_M1)
+      + gaugeCardHTML('M2 — Ações compartilhadas',
+          'Ações compartilhadas ÷ ações realizadas × 100',
+          d.m2, 8, CLASS_BANDS_M2, 'needle-geral-m2', fmtDec(d.m2,2)+'<span class="unit">%</span>', d.classificacaoM2,
+          fmtInt(d.subNumeradorM2)+' compartilhadas ÷ '+fmtInt(d.subDenominadorM2)+' ações', LEGEND_M2)
+      + gaugeCardHTML('Desempenho quadrimestral',
+          'Nota final = (Pontos M1 × 6 + Pontos M2 × 4) ÷ 10',
+          d.notaFinal, 10, CLASS_BANDS_NOTA, 'needle-geral-nota', fmtDec(d.notaFinal,2), d.desempenho,
+          'Pontos M1: '+fmtInt(d.pontosM1)+' · Pontos M2: '+fmtInt(d.pontosM2), LEGEND_NOTA);
+
+    // ---- Meta do quadrimestre: alvo de atendimentos/ações compartilhadas
+    // pra bater "Bom" e "Ótimo" em M1 e M2, com ritmo médio necessário. ----
+    var metaM1 = calcularMetasQuadrimestre(d.numeradorM1, d.denominadorM1, M1_META_THRESHOLDS, 'atend.',
+      'atendimentos (retornos) de pessoas que foram atendidas nos últimos 4 meses');
+    var metaM2 = calcularMetasQuadrimestre(d.numeradorM2, d.denominadorM2, M2_META_THRESHOLDS, 'ações');
+    document.getElementById('metaQuadRow').innerHTML =
+        metaQuadrimestreHTML('Meta do quadrimestre — M1', d.denominadorM1, 'pessoas atendidas', metaM1.cards, metaM1.preliminar)
+      + metaQuadrimestreHTML('Meta do quadrimestre — M2', d.denominadorM2, 'ações realizadas', metaM2.cards, metaM2.preliminar);
+
+    // ---- Aba M1: gauge + composição do M1 + listas ----
+    document.getElementById('gaugeRowM1').innerHTML =
+      gaugeCardHTML('M1 — Média de atendimentos por pessoa',
+        'Atendimentos individuais + coletivos ÷ pessoas atendidas',
+        d.m1, 4, CLASS_BANDS_M1, 'needle-m1tab-m1', fmtDec(d.m1,2), d.classificacaoM1,
+        fmtInt(d.subNumeradorM1)+' atendimentos ÷ '+fmtInt(d.subDenominadorM1)+' pessoas', LEGEND_M1);
+    document.getElementById('compRowM1').innerHTML =
+        '<div class="card comp-card"><h4>Numerador do M1</h4>'+numM1Bar+'</div>'
+      + '<div class="card comp-card"><h4>Denominador do M1</h4>'+denM1Bar+'</div>';
+    renderListsSection('listsM1', m1ListNames());
+
+    // ---- Aba M2: gauge + composição do M2 + listas ----
+    document.getElementById('gaugeRowM2').innerHTML =
+      gaugeCardHTML('M2 — Ações compartilhadas',
+        'Ações compartilhadas ÷ ações realizadas × 100',
+        d.m2, 8, CLASS_BANDS_M2, 'needle-m2tab-m2', fmtDec(d.m2,2)+'<span class="unit">%</span>', d.classificacaoM2,
+        fmtInt(d.subNumeradorM2)+' compartilhadas ÷ '+fmtInt(d.subDenominadorM2)+' ações', LEGEND_M2);
+    document.getElementById('compRowM2').innerHTML =
+        '<div class="card comp-card"><h4>Numerador do M2</h4>'+numM2Bar+'</div>'
+      + '<div class="card comp-card"><h4>Denominador do M2</h4>'+denM2Bar+'</div>';
+    renderListsSection('listsM2', m2ListNames());
+
+    // Tendência mês a mês: cada ponto é o M1/M2 calculado com sua própria
+    // janela móvel de JANELA_MESES meses terminando naquele mês (ver
+    // calcularSerieTendencia) — não é mais o histórico de vezes que a
+    // página foi atualizada.
+    var trend = '';
+    trend += '<div class="card trend-card"><h4>M1 mês a mês</h4>'
+      + '<p class="cur">Mês de referência ('+refMonthLabel()+'): '+fmtDec(d.m1,2)+'</p>'
+      + sparkline(serieTendencia.map(function(p){ return {y:p.m1, label:monthShortLabel(p.mes), value:fmtDec(p.m1,2), quadKey:quadKeyOfDate(p.mes), quadLabel:quadCode(p.mes)}; }).filter(function(p){return p.y!=null;}), '#153F35', {quadAvg:true, classify:classificarM1})
+      + '<p class="footnote">Cada ponto já é a janela de '+JANELA_MESES+' meses terminando naquele mês. Linha tracejada = média do quadrimestre no período exibido.</p>'
+      + '</div>';
+    trend += '<div class="card trend-card"><h4>M2 (%) mês a mês</h4>'
+      + '<p class="cur">Mês de referência ('+refMonthLabel()+'): '+fmtDec(d.m2,2)+'%</p>'
+      + sparkline(serieTendencia.map(function(p){ return {y:p.m2, label:monthShortLabel(p.mes), value:fmtDec(p.m2,2)+'%', quadKey:quadKeyOfDate(p.mes), quadLabel:quadCode(p.mes)}; }).filter(function(p){return p.y!=null;}), '#C68A3D', {quadAvg:true, suffix:'%', classify:classificarM2})
+      + '<p class="footnote">Cada ponto já é a janela de '+JANELA_MESES+' meses terminando naquele mês. Linha tracejada = média do quadrimestre no período exibido.</p>'
+      + '</div>';
+    document.getElementById('trendRow').innerHTML = trend;
+    setupTrendInteractivity();
+
+    // Série histórica (tabela): um mês por linha, cada um já calculado com
+    // sua própria janela móvel de JANELA_MESES meses (mesmos pontos do
+    // sparkline acima) — mostra numerador/denominador/classificação de
+    // M1 e M2 e o "Desempenho quadrimestral" (síntese M1×6 + M2×4) mês a
+    // mês, pra dar visibilidade à composição por trás de cada ponto do
+    // gráfico.
+    var trendHistoryRows = serieTendencia.map(function(p){
+      var classeM1 = classificarM1(p.m1);
+      var classeM2 = classificarM2(p.m2);
+      var desemp = classificarDesempenho(p.notaFinal);
+      function pill(txt){ return '<span class="pill" style="background:'+(CLASS_PILL_HEX[txt]||'#7A8A82')+'">'+escapeHtml(txt)+'</span>'; }
+      return '<tr>'
+        + '<td>'+escapeHtml(monthShortLabel(p.mes))+'</td>'
+        + '<td>'+fmtInt(p.numeradorM1)+'</td>'
+        + '<td>'+fmtInt(p.denominadorM1)+'</td>'
+        + '<td>'+(p.m1!=null ? fmtDec(p.m1,2) : '—')+'</td>'
+        + '<td>'+pill(classeM1)+'</td>'
+        + '<td>'+fmtInt(p.numeradorM2)+'</td>'
+        + '<td>'+fmtInt(p.denominadorM2)+'</td>'
+        + '<td>'+(p.m2!=null ? fmtDec(p.m2,2)+'%' : '—')+'</td>'
+        + '<td>'+pill(classeM2)+'</td>'
+        + '<td>'+(p.notaFinal!=null ? fmtDec(p.notaFinal,2) : '—')+'</td>'
+        + '<td>'+pill(desemp)+'</td>'
+        + '</tr>';
+    }).join('');
+    document.getElementById('trendHistoryWrap').innerHTML =
+        '<div class="card"><h4 style="margin:0 0 4px;font-size:14.5px;font-weight:500;">Série histórica — numerador, denominador e desempenho quadrimestral</h4>'
+      + '<p class="footnote" style="margin:0 0 12px;">Um mês por linha, cada um com sua própria janela móvel de '+JANELA_MESES+' meses terminando naquele mês (mesmos pontos dos gráficos acima). "Desempenho quadrimestral" é a síntese própria M1×6 + M2×4 — ver Notas Metodológicas.</p>'
+      + '<div class="table-wrap"><table class="data-table"><thead><tr>'
+      +   '<th>Mês</th><th>Numerador M1</th><th>Denominador M1</th><th>M1</th><th>Classe M1</th>'
+      +   '<th>Numerador M2</th><th>Denominador M2</th><th>M2 (%)</th><th>Classe M2</th><th>Nota do desempenho</th><th>Desempenho quadrimestral</th>'
+      + '</tr></thead><tbody>'+trendHistoryRows+'</tbody></table></div></div>';
+
+    var notesList = document.getElementById('notesList');
+    if(record.notes && record.notes.length){
+      notesList.innerHTML = record.notes.map(function(n){ return '<li>'+escapeHtml(n)+'</li>'; }).join('');
+    } else {
+      notesList.innerHTML = '<li style="list-style:none;margin-left:-20px;">Nenhuma nota disponível para esta leitura.</li>';
+    }
+
+    animateGauges();
+    renderHistoryList();
+  }
+
+  // ---------- Storage ----------
+  function loadHistoryArray(){
+    return window.__historyCache || [];
+  }
+
+  function refreshHistoryFromStorage(cb){
+    if(!STORAGE_AVAILABLE){
+      window.__historyCache = memoryHistory;
+      if(cb) cb(memoryHistory);
+      return;
+    }
+    window.storage.get(STORAGE_KEY, false).then(function(res){
+      var arr = [];
+      if(res && res.value){
+        try{ arr = JSON.parse(res.value); }catch(e){ arr = []; }
+      }
+      window.__historyCache = arr;
+      if(cb) cb(arr);
+    }).catch(function(){
+      window.__historyCache = [];
+      if(cb) cb([]);
+    });
+  }
+
+  function saveHistoryArray(arr){
+    window.__historyCache = arr;
+    memoryHistory = arr;
+    if(!STORAGE_AVAILABLE) return Promise.resolve();
+    try{
+      return window.storage.set(STORAGE_KEY, JSON.stringify(arr), false).catch(function(){});
+    }catch(e){
+      return Promise.resolve();
+    }
+  }
+
+  function renderHistoryList(){
+    var arr = loadHistoryArray().slice().sort(function(a,b){ return b.timestamp-a.timestamp; });
+    var el = document.getElementById('historyList');
+    var clearBtn = document.getElementById('clearHistory');
+    if(!arr.length){
+      el.innerHTML = '<p class="history-empty">Nenhuma leitura ainda.</p>';
+      clearBtn.style.display = 'none';
+      return;
+    }
+    clearBtn.style.display = 'block';
+    el.innerHTML = arr.map(function(h){
+      var dotColor = h.error ? '#9AA69E' : pillHex(h.data && h.data.desempenho);
+      return '<div class="history-item'+(h.id===currentRecordId?' active':'')+'" data-id="'+h.id+'">'
+        + '<span class="history-dot" style="background:'+dotColor+'"></span>'
+        + '<span class="history-text"><span class="eq">'+escapeHtml(h.equipe)+'</span><span class="dt">'+fmtDate(h.timestamp)+'</span></span>'
+        + '<button class="history-del" data-del="'+h.id+'" title="Remover">×</button>'
+        + '</div>';
+    }).join('');
+
+    el.querySelectorAll('.history-item').forEach(function(item){
+      item.addEventListener('click', function(e){
+        if(e.target.classList.contains('history-del')) return;
+        var id = item.getAttribute('data-id');
+        var rec = loadHistoryArray().find(function(h){ return h.id === id; });
+        if(rec){
+          currentRecordId = id;
+          renderDashboard(rec, calcularSerieTendencia(latestWb, anchorMonthDate(), TREND_MESES));
+        }
+      });
+    });
+    el.querySelectorAll('.history-del').forEach(function(btn){
+      btn.addEventListener('click', function(e){
+        e.stopPropagation();
+        var id = btn.getAttribute('data-del');
+        var arr2 = loadHistoryArray().filter(function(h){ return h.id !== id; });
+        saveHistoryArray(arr2).then(function(){
+          if(id === currentRecordId && arr2.length){
+            var latest = arr2.slice().sort(function(a,b){return b.timestamp-a.timestamp;})[0];
+            currentRecordId = latest.id;
+            renderDashboard(latest);
+          } else {
+            renderHistoryList();
+          }
+        });
+      });
+    });
+  }
+
+  document.getElementById('clearHistory').addEventListener('click', function(){
+    if(!confirm('Remover todo o histórico de leituras deste navegador?')) return;
+    saveHistoryArray([]).then(function(){
+      currentRecordId = null;
+      renderHistoryList();
+    });
+  });
+
+  // ---------- Fetch ----------
+  var fetchStatusEl = document.getElementById('fetchStatus');
+  var refreshBtn = document.getElementById('refreshBtn');
+  var refreshLabel = document.getElementById('refreshLabel');
+
+  function sameData(a,b){
+    if(!a || !b) return false;
+    return JSON.stringify(a) === JSON.stringify(b);
+  }
+
+  // Dados brutos (já filtrados pela equipe atual, mas SEM filtro de
+  // período — o período é aplicado depois, em calcularIndicadoresDoPeriodo)
+  // guardados aqui após o último fetch bem-sucedido. Trocar o "Mês de
+  // referência" no seletor reusa este cache e recalcula tudo na hora, sem
+  // precisar buscar a planilha de novo na rede.
+  var latestWb = null;
+
+  // Recalcula M1/M2/pontos/nota + a série de tendência pro mês de
+  // referência atual (refMonthDates), a partir do cache latestWb.
+  // saveHistory=true (usado logo após um fetch): grava uma nova "leitura"
+  // no histórico se os dados mudaram desde a última do mesmo período/equipe.
+  // saveHistory=false (usado ao trocar o seletor de mês): só recalcula e
+  // renderiza na hora, sem criar entrada nova no histórico de leituras.
+  function aplicarMesReferencia(saveHistory){
+    if(!latestWb) return;
+
+    var extracted, periodo;
+    if(refMonthDates.length === 1){
+      // Um único mês escolhido: NÃO é só aquele mês isolado — é a janela
+      // móvel de JANELA_MESES meses TERMINANDO nesse mês (ex.: maio →
+      // fev, mar, abr e maio, incluindo os dois extremos), a mesma janela
+      // usada pela série de tendência (ver calcularJanelaPeriodo).
+      var janelaMes = calcularJanelaPeriodo(refMonthDates[0]);
+      extracted = calcularIndicadoresDoPeriodo(latestWb, janelaMes);
+      periodo = {inicio: fmtBRDate(janelaMes.inicio), fim: fmtBRDate(janelaMes.fim)};
+    } else if(refMonthDates.length > 1){
+      // Vários meses escolhidos: o M1/M2 de CADA mês marcado já é o valor
+      // com a janela móvel de JANELA_MESES meses terminando naquele mês
+      // (mesma regra do mês único, acima) — os resultados dos meses
+      // marcados entram na MÉDIA (mesmo princípio da média do
+      // quadrimestre, ver mediaDeMeses), e os totais de contexto/"Pessoas
+      // atendidas" somam o mês isolado (sem janela) de cada um, pra não
+      // sobrepor dados de meses vizinhos quando as janelas se cruzam.
+      var resultadosMensaisSel = refMonthDates.map(function(m){
+        return calcularIndicadoresDoPeriodo(latestWb, periodoMesUnico(m));
+      });
+      var resultadosJanelaSel = refMonthDates.map(function(m){
+        return calcularIndicadoresDoPeriodo(latestWb, calcularJanelaPeriodo(m));
+      });
+      extracted = mediaDeMeses(resultadosMensaisSel, resultadosJanelaSel);
+      periodo = {
+        inicio: fmtBRDate(periodoMesUnico(refMonthDates[0]).inicio),
+        fim: fmtBRDate(periodoMesUnico(refMonthDates[refMonthDates.length-1]).fim)
+      };
+    } else {
+      // Nenhum mês escolhido: média dos 4 meses do quadrimestre selecionado.
+      // O M1/M2 de CADA mês usado na média já é o valor com a janela móvel
+      // de JANELA_MESES meses terminando naquele mês (mesma regra oficial
+      // usada na seleção de mês individual e no gráfico de tendência) —
+      // por isso calculamos cada mês duas vezes: uma com a janela (pra
+      // entrar na média de M1/M2) e outra isolada, só o mês em si (pra
+      // somar contagens de contexto e montar "Pessoas atendidas" sem
+      // sobrepor dados de meses vizinhos).
+      var meses = mesesDoQuadrimestre(quadSelecionado.ano, quadSelecionado.qIndex);
+      var resultadosMensais = meses.map(function(m){
+        return calcularIndicadoresDoPeriodo(latestWb, periodoMesUnico(m));
+      });
+      var resultadosJanela = meses.map(function(m){
+        return calcularIndicadoresDoPeriodo(latestWb, calcularJanelaPeriodo(m));
+      });
+      extracted = mediaDeMeses(resultadosMensais, resultadosJanela);
+      periodo = {
+        inicio: fmtBRDate(periodoMesUnico(meses[0]).inicio),
+        fim: fmtBRDate(periodoMesUnico(meses[3]).fim)
+      };
+    }
+
+    populateSheetsCache(latestWb);
+    // "Pessoas atendidas" agora NÃO usa mais extracted.pessoasAtendidas
+    // (ligado ao filtro de Mês do topo) — a lista, na aba Listas, é
+    // recalculada direto por renderListCard/pessoasAtendidasParaMeses,
+    // com o próprio filtro de mês (ver renderListsSection).
+
+    var serie = calcularSerieTendencia(latestWb, anchorMonthDate(), TREND_MESES);
+
+    if(quadMs) quadMs.setSelected([quadSelecionado.ano+'-'+quadSelecionado.qIndex]);
+    if(mesMs) mesMs.setSelected(refMonthDates.map(monthOptionValue));
+    var winEl = document.getElementById('refWindowLabel');
+    if(winEl){
+      winEl.innerHTML = refMonthDates.length
+        ? 'Resultado de <b>'+refMonthLabel()+'</b> — janela de '+JANELA_MESES+' meses cada ('+periodo.inicio+' a '+periodo.fim+')'
+        : 'Média de <b>'+QUAD_LABELS[quadSelecionado.qIndex]+'/'+quadSelecionado.ano+'</b> ('+periodo.inicio+' a '+periodo.fim+')';
+    }
+
+    if(!saveHistory){
+      var base = currentRecordId ? loadHistoryArray().find(function(h){ return h.id === currentRecordId; }) : null;
+      var record = {
+        id: base ? base.id : 'tmp',
+        timestamp: base ? base.timestamp : Date.now(),
+        equipe: extracted.equipe,
+        data: extracted.data,
+        notes: extracted.notes,
+        periodo: periodo
+      };
+      renderDashboard(record, serie);
+      return;
+    }
+
+    var now = Date.now();
+    var history = loadHistoryArray();
+    var lastForEquipe = history.filter(function(h){
+      return !h.error && h.equipe === extracted.equipe
+        && h.periodo && h.periodo.inicio === periodo.inicio && h.periodo.fim === periodo.fim;
+    }).sort(function(a,b){ return b.timestamp-a.timestamp; })[0];
+
+    if(lastForEquipe && sameData(lastForEquipe.data, extracted.data)){
+      currentRecordId = lastForEquipe.id;
+      fetchStatusEl.textContent = 'Dados sem alterações desde a última leitura.';
+      renderDashboard(lastForEquipe, serie);
+      return;
+    }
+
+    var record = {
+      id: 'u'+now+Math.random().toString(36).slice(2,7),
+      timestamp: now,
+      equipe: extracted.equipe,
+      data: extracted.data,
+      notes: extracted.notes,
+      periodo: periodo
+    };
+    var arr = loadHistoryArray();
+    arr.push(record);
+    saveHistoryArray(arr).then(function(){
+      currentRecordId = record.id;
+      fetchStatusEl.textContent = 'Planilha lida e calculada com sucesso.';
+      renderDashboard(record, serie);
+    });
+  }
+
+  function fetchAndLoad(){
+    refreshBtn.classList.add('loading');
+    refreshBtn.disabled = true;
+    refreshLabel.textContent = 'Atualizando…';
+    fetchStatusEl.textContent = 'Buscando dados…';
+    fetchStatusEl.className = 'fetch-status';
+
+    fetchAllSheets()
+      .then(function(results){
+        var faltando = results.filter(function(r){ return !r.ok; });
+        if(faltando.length){
+          throw new Error('Não foi possível ler a(s) aba(s) "' + faltando.map(function(r){return r.name;}).join('", "')
+            + '" (verifique se elas ainda existem com esse nome e se a planilha está com acesso "qualquer pessoa com o link pode visualizar").');
+        }
+
+        var wb = {SheetNames:[], Sheets:{}};
+        results.forEach(function(r){
+          var parsedRows = parseCsv(r.csvText);
+          if(!parsedRows.length) return;
+          // r.name é o nome REAL da aba (sem sufixo). Filtra as linhas pela
+          // equipe selecionada e guarda no workbook sob a chave "sufixada"
+          // — o resto do painel (cálculo, listas) continua lendo por essa
+          // chave, sem precisar saber que a aba é compartilhada entre
+          // equipes. Note: SEM filtro de período aqui — cada mês de
+          // referência filtra por data na hora, em aplicarMesReferencia().
+          var filtradas = filtrarLinhasPorEquipe(parsedRows, currentEquipes);
+          var key = suffixedName(r.name);
+          wb.Sheets[key] = filtradas;
+          wb.SheetNames.push(key);
+        });
+
+        latestWb = wb;
+        aplicarMesReferencia(true);
+      })
+      .catch(function(err){
+        var msg = (err && err.message) ? err.message : 'verifique sua conexão e o link publicado.';
+        fetchStatusEl.textContent = 'Não foi possível ler a planilha: ' + msg;
+        fetchStatusEl.className = 'fetch-status err';
+        var history = loadHistoryArray();
+        if(!history.length){
+          document.getElementById('statusState').innerHTML =
+            '<h2>Não foi possível carregar</h2><p>' + escapeHtml(msg) + '</p>'
+            + '<div class="ficha"><b>Verifique:</b> se a planilha continua publicada em "Arquivo → Compartilhar → Publicar na web" (incluindo todas as abas) e se o link ainda é válido.</div>'
+            + '<button class="retry-btn" id="retryBtn">Tentar de novo</button>';
+          var retry = document.getElementById('retryBtn');
+          if(retry) retry.addEventListener('click', fetchAndLoad);
+        }
+      })
+      .finally(function(){
+        refreshBtn.classList.remove('loading');
+        refreshBtn.disabled = false;
+        refreshLabel.textContent = 'Atualizar agora';
+      });
+  }
+
+  refreshBtn.addEventListener('click', fetchAndLoad);
+
+  function renderEquipeSwitcher(){
+    var equipeMs = createMultiSelect(document.getElementById('equipeMs'), {
+      placeholder: 'Selecione',
+      multi: true,
+      search: false,
+      showTags: true,
+      onChange: function(keys){
+        if(keys.length===0){
+          // sempre precisa ficar pelo menos 1 equipe marcada
+          equipeMs.setSelected(currentEquipes.map(function(e){ return e.key; }));
+          return;
+        }
+        currentEquipes = EQUIPES.filter(function(eq){ return keys.indexOf(eq.key)>=0; });
+        document.getElementById('statusState').style.display = '';
+        fetchAndLoad();
+      }
+    });
+    equipeMs.setOptions(EQUIPES.map(function(eq){ return {value: eq.key, label: eq.label}; }));
+    equipeMs.setSelected(currentEquipes.map(function(e){ return e.key; }));
+  }
+  renderEquipeSwitcher();
+
+  // ---------- Init ----------
+  refreshHistoryFromStorage(function(arr){
+    if(arr.length){
+      var latest = arr.slice().sort(function(a,b){ return b.timestamp-a.timestamp; })[0];
+      currentRecordId = latest.id;
+      renderDashboard(latest);
+    }
+    fetchAndLoad();
+  });
+})();
