@@ -236,8 +236,18 @@
   .mm-layout{display:flex;gap:20px;flex-wrap:wrap;align-items:stretch;margin-bottom:8px;}
   .mm-comp-col{flex:1 1 280px;min-width:260px;display:flex;flex-direction:column;gap:18px;}
   .mm-comp-col .comp-card{flex:1;display:flex;flex-direction:column;justify-content:center;}
-  .mm-gauge-col{flex:1 1 260px;min-width:260px;display:flex;}
-  .mm-gauge-col .gauge-card{flex:1;}
+  .mm-gauge-col{flex:1.5 1 340px;min-width:300px;display:flex;}
+  .mm-gauge-col .gauge-card{flex:1;padding:30px 28px;}
+  /* Gauge maior só aqui (abas M1/M2) — não mexe no gauge-row da Visão geral. */
+  .mm-gauge-col .gauge-svg{max-width:320px;}
+  .mm-gauge-col .gauge-card h3{font-size:18px;}
+  .mm-gauge-col .gauge-card .formula{font-size:13.5px;}
+  .mm-gauge-col .gauge-value{font-size:48px;}
+  .mm-gauge-col .gauge-value .unit{font-size:25px;}
+  .mm-gauge-col .pill{font-size:14px;padding:7px 16px;}
+  .mm-gauge-col .gauge-note{font-size:13.5px;margin-top:8px;}
+  .mm-gauge-col .gauge-legend{font-size:12.5px;gap:5px 16px;}
+  .mm-gauge-col .gauge-legend i{width:9px;height:9px;}
   @media (max-width:720px){
     .mm-layout{flex-direction:column;}
     .mm-comp-col .comp-card{flex:none;}
