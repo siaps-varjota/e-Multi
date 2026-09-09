@@ -307,6 +307,8 @@
   .list-search:focus{outline:none;border-color:var(--header-bg);}
   .list-filters{display:flex;gap:14px;flex-wrap:wrap;margin-bottom:10px;align-items:center;justify-content:center;}
   .filter-pair{display:flex;gap:6px;}
+  .filter-val-ms{min-width:170px;max-width:230px;}
+  .filter-val-ms.ms-disabled .ms-btn{opacity:.55;cursor:not-allowed;pointer-events:none;}
   .list-filters select{
     padding:8px 12px;border:1px solid var(--line);border-radius:6px;
     font-family:'Inter',sans-serif;font-size:13px;background:var(--surface);color:var(--ink);
@@ -1372,10 +1374,10 @@
       }).join('');
       var colOptionsHtml = '<option value="">Filtrar por coluna…</option>'
         + cached.headers.map(function(h,i){ return '<option value="'+i+'">'+escapeHtml(h)+'</option>'; }).join('');
-      var filterPairsHtml = [0,1,2].map(function(){
+      var filterPairsHtml = [0,1,2].map(function(idx){
         return '<div class="filter-pair">'
           + '<select class="filter-col">'+colOptionsHtml+'</select>'
-          + '<select class="filter-val" disabled><option value="">Todos os valores</option></select>'
+          + '<div class="ms-wrap filter-val-ms ms-disabled" data-pair-idx="'+idx+'"></div>'
           + '</div>';
       }).join('');
       // Filtro de mês (multisseleção) — aparece quando a lista tem uma
@@ -1410,17 +1412,17 @@
       var activeFilters = [];
       card.querySelectorAll('.filter-pair').forEach(function(pair){
         var colSelect = pair.querySelector('.filter-col');
-        var valSelect = pair.querySelector('.filter-val');
+        var valWrap = pair.querySelector('.filter-val-ms');
         var colIdx = colSelect && colSelect.value !== '' ? parseInt(colSelect.value, 10) : null;
-        var val = valSelect ? valSelect.value : '';
-        if(colIdx !== null && val !== ''){ activeFilters.push({colIdx:colIdx, val:val}); }
+        var vals = (valWrap && valWrap._msInstance) ? valWrap._msInstance.getSelected() : [];
+        if(colIdx !== null && vals.length){ activeFilters.push({colIdx:colIdx, vals:vals}); }
       });
       var visibleCount = 0;
       card.querySelectorAll('tbody tr').forEach(function(tr, rowIdx){
         var matchesText = !term || tr.textContent.toLowerCase().indexOf(term) !== -1;
         var matchesCols = activeFilters.every(function(f){
           var cell = tr.children[f.colIdx];
-          return cell && cell.textContent.trim() === f.val;
+          return cell && f.vals.indexOf(cell.textContent.trim()) >= 0;
         });
         var matchesMonth = true;
         if(selectedMonths.length && dateColIdx != null && dateColIdx >= 0){
@@ -1503,16 +1505,28 @@
       });
     });
 
-    el.querySelectorAll('.filter-pair .filter-col').forEach(function(colSelect){
+    el.querySelectorAll('.filter-pair').forEach(function(pair){
+      var colSelect = pair.querySelector('.filter-col');
+      var valWrap = pair.querySelector('.filter-val-ms');
+      // Multisseleção de valores ("Todos os valores"): fica desabilitada
+      // (opacidade + sem clique, via .ms-disabled) até uma coluna ser
+      // escolhida no select ao lado. A instância fica pendurada no
+      // próprio elemento (._msInstance) pra applyFilters conseguir ler
+      // os valores marcados sem precisar de um estado global à parte.
+      var msInst = createMultiSelect(valWrap, {
+        placeholder: 'Todos os valores', multi: true, search: true, showTags: true,
+        onChange: function(){ applyFilters(pair.closest('.list-card')); }
+      });
+      valWrap._msInstance = msInst;
+
       colSelect.addEventListener('change', function(){
         var card = colSelect.closest('.list-card');
         var listName = card.querySelector('[data-list-filters]').getAttribute('data-list-filters');
-        var pair = colSelect.closest('.filter-pair');
-        var valSelect = pair.querySelector('.filter-val');
         var colIdx = colSelect.value !== '' ? parseInt(colSelect.value, 10) : null;
-        valSelect.innerHTML = '<option value="">Todos os valores</option>';
         if(colIdx === null){
-          valSelect.disabled = true;
+          msInst.setOptions([]);
+          msInst.setSelected([]);
+          valWrap.classList.add('ms-disabled');
         } else {
           var cached = latestSheets[listName];
           var seen = {};
@@ -1523,21 +1537,11 @@
             if(v && !seen[v]){ seen[v] = true; values.push(v); }
           });
           values.sort(function(a,b){ return a.localeCompare(b, 'pt-BR'); });
-          values.forEach(function(v){
-            var opt = document.createElement('option');
-            opt.value = v;
-            opt.textContent = v;
-            valSelect.appendChild(opt);
-          });
-          valSelect.disabled = false;
+          msInst.setOptions(values.map(function(v){ return {value:v, label:v}; }));
+          msInst.setSelected([]);
+          valWrap.classList.remove('ms-disabled');
         }
         applyFilters(card);
-      });
-    });
-
-    el.querySelectorAll('.filter-pair .filter-val').forEach(function(valSelect){
-      valSelect.addEventListener('change', function(){
-        applyFilters(valSelect.closest('.list-card'));
       });
     });
   }
