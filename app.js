@@ -1328,6 +1328,124 @@
     {label:'Regular',    cond:'≤ 2,5',               color:arcHex('Regular')}
   ];
 
+  // ---------- Cartões da Visão geral (modelo "ícone + anel + evolução") ----------
+  // Cor de identidade de cada indicador (não é a cor de classificação —
+  // essa é só visual, pra diferenciar M1/M2/Desempenho de cara).
+  var OV_ACCENT = {
+    m1:   {main:'#3B82F6', bg:'#E9F1FE'},
+    m2:   {main:'#8B5CF6', bg:'#F1ECFE'},
+    nota: {main:'#F97316', bg:'#FEEEE1'}
+  };
+  // Cor do badge (Regular/Suficiente/Bom/Ótimo) — pastel, independente da
+  // cor de identidade do cartão.
+  var OV_BADGE = {
+    'Regular':    {bg:'#FBE9E9', fg:'#C0392B'},
+    'Suficiente': {bg:'#FCF1DE', fg:'#B7791F'},
+    'Bom':        {bg:'#E7F0FC', fg:'#2F6FCE'},
+    'Ótimo':      {bg:'#E5F6EE', fg:'#1C9A63'}
+  };
+  var OV_ICONS = {
+    pulse: '<path d="M3 12h4l2-7 4 14 2-7h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+    users: '<circle cx="8.5" cy="8" r="3" fill="none" stroke="currentColor" stroke-width="2"/><path d="M2.5 19c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="17" cy="9" r="2.4" fill="none" stroke="currentColor" stroke-width="2"/><path d="M15.3 13.6c2.6.3 4.7 2.3 4.7 5.4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+    speed: '<circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/><path d="M12 12l4.5-4" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/>'
+  };
+  function ovIconHTML(kind, accent){
+    return '<div class="ov-icon" style="background:'+accent.bg+';color:'+accent.main+';">'
+      + '<svg viewBox="0 0 24 24">'+OV_ICONS[kind]+'</svg></div>';
+  }
+  // Anel de progresso (valor ÷ domainMax) — usado no lugar do arco meia-lua
+  // nos cartões da Visão geral.
+  function ovRingSVG(value, domainMax, accent){
+    var size=84, r=34, cx=size/2, cy=size/2, circ=2*Math.PI*r;
+    var frac = (value==null || !domainMax) ? 0 : Math.max(0, Math.min(1, value/domainMax));
+    var dash = (circ*frac).toFixed(1);
+    return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 '+size+' '+size+'">'
+      + '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="'+accent.bg+'" stroke-width="9"/>'
+      + '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="'+accent.main+'" stroke-width="9" '
+      +   'stroke-linecap="round" stroke-dasharray="'+dash+' '+circ.toFixed(1)+'" '
+      +   'transform="rotate(-90 '+cx+' '+cy+')"/>'
+      + '</svg>';
+  }
+  // Quadrimestre imediatamente anterior ao selecionado, calculado com a
+  // MESMA metodologia do quadrimestre atual (média do m1/m2 de cada um dos
+  // 4 meses, cada um já com sua janela móvel oficial — ver mediaDeMeses) —
+  // usado só pro bloco "Evolução - Quadrimestre" dos cartões da Visão
+  // geral. Retorna null nos campos que não tiverem os 4 meses de dado
+  // disponíveis (aí o cartão mostra "Sem histórico" pra aquele indicador).
+  function calcularQuadrimestreAnterior(){
+    if(!latestWb) return {m1:null, m2:null, notaFinal:null};
+    var anchorAtual = new Date(quadSelecionado.ano, quadSelecionado.qIndex*4+3, 1);
+    var anchorAnterior = addMonths(anchorAtual, -4);
+    var pontos = calcularSerieTendencia(latestWb, anchorAnterior, 4);
+    function media(campo){
+      var vals = pontos.map(function(p){ return p[campo]; }).filter(function(v){ return v!=null; });
+      if(vals.length < 4) return null; // só conta como quadrimestre completo com os 4 meses
+      return vals.reduce(function(a,b){ return a+b; }, 0) / vals.length;
+    }
+    var m1 = media('m1');
+    var m2 = media('m2');
+    var classificacaoM1 = m1!=null ? classificarM1(m1) : null;
+    var classificacaoM2 = m2!=null ? classificarM2(m2) : null;
+    var p1 = classificacaoM1 ? PONTOS_POR_CLASSE[classificacaoM1]*6 : null;
+    var p2 = classificacaoM2 ? PONTOS_POR_CLASSE[classificacaoM2]*4 : null;
+    var notaFinal = (p1!=null && p2!=null) ? (p1+p2) : null;
+    return {m1:m1, m2:m2, notaFinal:notaFinal, label:quadShortLabel(anchorAnterior)};
+  }
+  // Bloco "Evolução - Quadrimestre": compara o valor atual com o do
+  // quadrimestre anterior (calcularQuadrimestreAnterior). Sem dado
+  // suficiente pra reconstruir o período anterior, mostra um aviso em vez
+  // da barra de comparação.
+  function ovEvoHTML(atual, anterior, domainMax, decimals, suffix){
+    suffix = suffix || '';
+    if(anterior==null || atual==null){
+      return '<div class="ov-evo">'
+        + '<p class="ov-evo-title">Evolução · quadrimestre</p>'
+        + '<p class="ov-evo-empty">Sem histórico suficiente pra comparar com o quadrimestre anterior.</p>'
+        + '</div>';
+    }
+    var delta = atual - anterior;
+    var dir = delta > 0.0001 ? 'up' : (delta < -0.0001 ? 'down' : 'flat');
+    var arrow = dir==='up' ? '↗' : (dir==='down' ? '↘' : '→');
+    var deltaColor = dir==='up' ? '#1C9A63' : (dir==='down' ? '#C0392B' : 'var(--ink-soft)');
+    var deltaTxt = (delta>0?'+':'')+fmtDec(delta,decimals)+suffix;
+    var fracAtual = Math.max(0, Math.min(1, atual/domainMax));
+    var fracAnterior = Math.max(0, Math.min(1, anterior/domainMax));
+    var fillColor = dir==='down' ? '#F2B4AE' : '#A8D9C1';
+    return '<div class="ov-evo">'
+      + '<div class="ov-evo-head">'
+      +   '<p class="ov-evo-title">Evolução · quadrimestre</p>'
+      +   '<span class="ov-evo-delta" style="color:'+deltaColor+';">'+arrow+' '+deltaTxt+'</span>'
+      + '</div>'
+      + '<div class="ov-evo-track">'
+      +   '<div class="ov-evo-fill" style="width:'+(fracAtual*100).toFixed(1)+'%;background:'+fillColor+';"></div>'
+      +   '<div class="ov-evo-mark" style="left:'+(fracAnterior*100).toFixed(1)+'%;"></div>'
+      + '</div>'
+      + '<div class="ov-evo-labels"><span>Anterior<br><b>'+fmtDec(anterior,decimals)+suffix+'</b></span>'
+      +   '<span style="text-align:right;">Atual<br><b>'+fmtDec(atual,decimals)+suffix+'</b></span></div>'
+      + '</div>';
+  }
+  // Cartão no modelo "ícone + anel + evolução" (só na Visão geral).
+  function overviewCardHTML(opts){
+    var accent = OV_ACCENT[opts.accentKey];
+    var badge = OV_BADGE[opts.classe] || {bg:'#EEE', fg:'#666'};
+    return '<div class="card ov-card">'
+      + '<div class="ov-head">'
+      +   '<div class="ov-head-left">'+ovIconHTML(opts.iconKind, accent)+'<span class="ov-kicker">'+opts.kicker+'</span></div>'
+      +   '<span class="ov-badge" style="background:'+badge.bg+';color:'+badge.fg+';">'+(opts.classe||'—')+'</span>'
+      + '</div>'
+      + '<p class="ov-desc">'+opts.desc+'</p>'
+      + '<div class="ov-main">'
+      +   '<div class="ov-value-block"><span class="ov-value">'+opts.valueTxt+'</span>'
+      +     '<span class="ov-value-cap">'+opts.valueCap+'</span></div>'
+      +   '<div class="ov-ring-wrap">'+ovRingSVG(opts.value, opts.domainMax, accent)
+      +     '<div class="ov-ring-center"><span class="ov-ring-value">'+opts.ringTxt+'</span>'
+      +       '<span class="ov-ring-scale">'+opts.scaleCap+'</span></div></div>'
+      + '</div>'
+      + ovEvoHTML(opts.value, opts.anterior, opts.domainMax, opts.decimals, opts.suffix||'')
+      + '<div class="ov-foot">'+opts.footHtml+'</div>'
+      + '</div>';
+  }
+
   function gaugeCardHTML(title, formula, value, domainMax, bands, gaugeId, valueHtml, classLabel, note, legend){
     return '<div class="card gauge-card">'
       + '<div class="gauge-header"><h3>'+title+'</h3><p class="formula">'+formula+'</p></div>'
@@ -1682,20 +1800,36 @@
       + '<div class="card comp-card"><h4>Numerador do M2</h4>'+numM2Bar+'</div>'
       + '<div class="card comp-card"><h4>Denominador do M2</h4>'+denM2Bar+'</div>';
 
-    // ---- Visão geral: 3 gauges (M1, M2, Desempenho) ----
+    // ---- Visão geral: 3 cards no modelo "ícone + anel + evolução" ----
+    var quadAnterior = calcularQuadrimestreAnterior();
     document.getElementById('gaugeRow').innerHTML =
-        gaugeCardHTML('M1 — Média de atendimentos por pessoa',
-          'Atendimentos individuais + coletivos ÷ pessoas atendidas',
-          d.m1, 4, CLASS_BANDS_M1, 'needle-geral-m1', fmtDec(d.m1,2), d.classificacaoM1,
-          fmtInt(numM1Gauge)+' atendimentos ÷ '+fmtInt(denM1Gauge)+' pessoas', LEGEND_M1)
-      + gaugeCardHTML('M2 — Ações compartilhadas',
-          'Ações compartilhadas ÷ ações realizadas × 100',
-          d.m2, 8, CLASS_BANDS_M2, 'needle-geral-m2', fmtDec(d.m2,2)+'<span class="unit">%</span>', d.classificacaoM2,
-          fmtInt(numM2Gauge)+' compartilhadas ÷ '+fmtInt(denM2Gauge)+' ações', LEGEND_M2)
-      + gaugeCardHTML('Desempenho quadrimestral',
-          'Nota final = (Pontos M1 × 6 + Pontos M2 × 4) ÷ 10',
-          d.notaFinal, 10, CLASS_BANDS_NOTA, 'needle-geral-nota', fmtDec(d.notaFinal,2), d.desempenho,
-          'Pontos M1: '+fmtInt(d.pontosM1)+' · Pontos M2: '+fmtInt(d.pontosM2), LEGEND_NOTA);
+        overviewCardHTML({
+          accentKey:'m1', iconKind:'pulse', kicker:'M1', classe:d.classificacaoM1,
+          desc:'Média de atendimentos por pessoa',
+          value:d.m1, domainMax:4, decimals:2, suffix:'',
+          valueTxt:fmtDec(d.m1,2), valueCap:'atendimentos<br>por pessoa',
+          ringTxt:fmtDec(d.m1,2), scaleCap:'de 4',
+          anterior:quadAnterior.m1,
+          footHtml:'<span>🗄️ base local</span><span style="margin-left:auto;">'+fmtInt(numM1Gauge)+' atendimentos / '+fmtInt(denM1Gauge)+' pessoas</span>'
+        })
+      + overviewCardHTML({
+          accentKey:'m2', iconKind:'users', kicker:'M2 · PROXY', classe:d.classificacaoM2,
+          desc:'Ações interprofissionais identificáveis',
+          value:d.m2, domainMax:8, decimals:1, suffix:'%',
+          valueTxt:fmtDec(d.m2,1)+'%', valueCap:'ações compartilhadas<br>no recorte',
+          ringTxt:fmtDec(d.m2,1), scaleCap:'escala local',
+          anterior:quadAnterior.m2,
+          footHtml:'<span>ⓘ proxy local</span><span style="margin-left:auto;">cálculo a partir da planilha publicada</span>'
+        })
+      + overviewCardHTML({
+          accentKey:'nota', iconKind:'speed', kicker:'DESEMPENHO', classe:d.desempenho,
+          desc:'Desempenho quadrimestral',
+          value:d.notaFinal, domainMax:10, decimals:1, suffix:'',
+          valueTxt:fmtDec(d.notaFinal,1), valueCap:'nota máxima<br>10,0',
+          ringTxt:fmtDec(d.notaFinal,1), scaleCap:'de 10',
+          anterior:quadAnterior.notaFinal,
+          footHtml:'<span>✓ pesos 6 + 4</span><span style="margin-left:auto;">M1 '+(d.classificacaoM1||'—')+' · '+fmtDec(d.pontosM1,1)+' &nbsp; M2 '+(d.classificacaoM2||'—')+' · '+fmtDec(d.pontosM2,1)+'</span>'
+        });
 
     // ---- Meta do quadrimestre: alvo de atendimentos/ações compartilhadas
     // pra bater "Bom" e "Ótimo" em M1 e M2, com ritmo médio necessário. ----
