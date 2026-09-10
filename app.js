@@ -1333,12 +1333,12 @@
   // Cor por STATUS (não mais por indicador): o ícone, o anel e o badge de
   // cada cartão seguem a classificação atual daquele indicador.
   var OV_STATUS = {
-    'Ótimo':      {accent:'#2563eb', badgeBg:'#eff6ff', badgeText:'#1e40af', icon:'★'},
-    'Bom':        {accent:'#16a34a', badgeBg:'#dcfce7', badgeText:'#166534', icon:'↗'},
-    'Suficiente': {accent:'#ea580c', badgeBg:'#ffedd5', badgeText:'#9a3412', icon:'→'},
-    'Regular':    {accent:'#dc2626', badgeBg:'#fee2e2', badgeText:'#991b1b', icon:'↘'}
+    'Ótimo':      {accent:'#2563eb', badgeBg:'#eff6ff', badgeText:'#1e40af', icon:'★', barColor:'#93c5fd'},
+    'Bom':        {accent:'#16a34a', badgeBg:'#dcfce7', badgeText:'#166534', icon:'↗', barColor:'#86efac'},
+    'Suficiente': {accent:'#ea580c', badgeBg:'#ffedd5', badgeText:'#9a3412', icon:'→', barColor:'#fdba74'},
+    'Regular':    {accent:'#dc2626', badgeBg:'#fee2e2', badgeText:'#991b1b', icon:'↘', barColor:'#fca5a5'}
   };
-  var OV_STATUS_FALLBACK = {accent:'#6b7280', badgeBg:'#f3f4f6', badgeText:'#374151', icon:'•'};
+  var OV_STATUS_FALLBACK = {accent:'#6b7280', badgeBg:'#f3f4f6', badgeText:'#374151', icon:'•', barColor:'#d1d5db'};
   function ovStatus(classe){ return OV_STATUS[classe] || OV_STATUS_FALLBACK; }
   var OV_ICONS = {
     pulse: '<path d="M3 12h4l2-7 4 14 2-7h6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
@@ -1392,7 +1392,7 @@
   function ovLegendHTML(items){
     var bar = items.map(function(it){
       var st = ovStatus(it.classe);
-      return '<span style="background:'+st.badgeBg+';"></span>';
+      return '<span style="background:'+st.barColor+';"></span>';
     }).join('');
     var labels = items.map(function(it){
       return '<span class="ov-legend-label"><b>'+it.cond+'</b> '+it.classe+'</span>';
