@@ -1466,8 +1466,16 @@
   }
 
   function gaugeCardHTML(title, formula, value, domainMax, bands, gaugeId, valueHtml, classLabel, note, legend){
+    // title/formula já aparecem no cabeçalho da aba (.indicator-tab-head)
+    // logo acima do mm-layout — aqui, dentro do card, mostramos só o
+    // rótulo interno + badge de status (modelo das imagens de referência),
+    // sem repetir o título grande de novo.
+    var st = ovStatus(classLabel);
     return '<div class="card gauge-card">'
-      + '<div class="gauge-header"><h3>'+title+'</h3><p class="formula">'+formula+'</p></div>'
+      + '<div class="gauge-top-row">'
+      +   '<h3 class="gauge-top-title">Resultado do indicador</h3>'
+      +   '<span class="gauge-top-badge" style="background:'+st.badgeBg+';color:'+st.badgeText+';">'+st.icon+' '+(classLabel||'—')+'</span>'
+      + '</div>'
       + buildGauge(value, domainMax, bands, gaugeId)
       + '<div class="gauge-value">'+valueHtml+'</div>'
       + '<span class="pill" style="background:'+pillHex(classLabel)+'">'+(classLabel||'—')+'</span>'
@@ -1532,14 +1540,20 @@
   // faixa (Bom/Ótimo) e quanto falta, sem os detalhes de ritmo médio
   // (que só aparecem no bloco completo da Visão geral).
   function metaQuadrimestreMiniHTML(base, baseLabel, cardsCfg, preliminar){
+    // Cada faixa (Bom/Ótimo) agora é uma "caixa" própria — ponto colorido +
+    // rótulo/alvo à esquerda, badge de status (faltam X / meta atingida) à
+    // direita — no modelo das imagens de referência.
     var rows = cardsCfg.map(function(c){
       var status = c.faltam<=0
         ? '<span class="meta-mini-status meta-mini-status-ok">Meta atingida ✓</span>'
         : '<span class="meta-mini-status">faltam '+fmtInt(c.faltam)+' '+c.unidadeFaltam+'</span>';
       return '<div class="meta-mini-row">'
-        + '<span class="meta-mini-dot" style="background:'+c.color+'"></span>'
-        + '<div><p class="meta-mini-label">'+c.label+'</p>'
-        +   '<p class="meta-mini-sub">Alvo: '+fmtInt(c.alvo)+' '+c.unidade+' · '+status+'</p></div>'
+        + '<div class="meta-mini-row-left">'
+        +   '<span class="meta-mini-dot" style="background:'+c.color+'"></span>'
+        +   '<div><p class="meta-mini-label">'+c.label+'</p>'
+        +     '<p class="meta-mini-sub">Alvo: '+fmtInt(c.alvo)+' '+c.unidade+'</p></div>'
+        + '</div>'
+        + status
         + '</div>';
     }).join('');
     return '<div class="card comp-card meta-mini-card">'
@@ -1590,8 +1604,15 @@
       var pct = t>0 ? (s.value/t*100) : 0;
       return '<div class="seg" style="width:'+pct+'%;background:'+s.color+'"></div>';
     }).join('');
+    // Label e contagem em spans separados: o layout padrão (Visão geral)
+    // continua mostrando "label (contagem)" numa linha só; as abas M1/M2
+    // usam CSS escopado (.mm-comp-col) pra virar linha cheia com a
+    // contagem em negrito alinhada à direita — modelo das imagens de
+    // referência — sem duplicar esta função.
     var legend = segments.map(function(s){
-      return '<span class="legend-item"><i style="background:'+s.color+'"></i>'+s.label+' ('+fmtInt(s.value)+')</span>';
+      return '<span class="legend-item"><i style="background:'+s.color+'"></i>'
+        + '<span class="legend-label">'+s.label+'</span>'
+        + '<span class="legend-count">'+fmtInt(s.value)+'</span></span>';
     }).join('');
     return '<div class="stackbar">'+bars+'</div><div class="legend">'+legend+'</div>';
   }
