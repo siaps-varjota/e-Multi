@@ -33,8 +33,8 @@
   .topbar{
     background:linear-gradient(120deg,var(--header-bg),var(--header-bg-2));
     color:var(--header-ink);
-    padding:10px 40px 12px;
-    display:flex;flex-direction:column;gap:10px;
+    padding:10px 40px 8px;
+    display:flex;flex-direction:column;gap:6px;
     position:sticky;top:0;z-index:5;
   }
   .topbar-top{
