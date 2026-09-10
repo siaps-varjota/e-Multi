@@ -319,8 +319,8 @@
   .notes-list a{color:var(--header-bg);text-decoration:none;font-weight:600;}
   .notes-list a:hover{text-decoration:underline;}
 
-  .indicator-tab-head{margin-bottom:20px;}
-  .indicator-tab-head h2{font-size:24px;font-weight:500;margin:0 0 4px;}
+  .indicator-tab-head{margin-bottom:20px;display:flex;align-items:baseline;flex-wrap:wrap;gap:10px 14px;}
+  .indicator-tab-head h2{font-size:24px;font-weight:500;margin:0;}
   .indicator-tab-head p{margin:0;font-size:13px;color:var(--ink-soft);}
   .lists-section{margin-top:8px;}
   .list-card{margin-bottom:18px;}
