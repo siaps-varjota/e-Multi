@@ -1640,7 +1640,7 @@
     // pra dar/tirar destaque em bloco ao passar o mouse ou clicar (ver
     // setupTrendInteractivity), inclusive no card do outro indicador.
     var pointsSvg = points.map(function(p,i){
-      var tone = opts.classify ? (CLASS_COLOR[opts.classify(p.y)] || color) : color;
+      var tone = opts.classify ? ovStatus(opts.classify(p.y)).accent : color;
       var ly = Math.max(9, coords[i].y - 8);
       var valTxt = (p.value!==undefined && p.value!==null && p.value!=='') ? '<text class="tp-val" x="'+coords[i].x+'" y="'+ly+'" font-size="9.5" font-weight="600" fill="'+tone+'" text-anchor="middle">'+escapeHtml(p.value)+'</text>' : '';
       return '<g class="tp-point" data-month="'+escapeHtml(p.label)+'">'
@@ -1679,7 +1679,7 @@
         var midX = (x1+x2)/2;
         var textY = Math.min(avgY + 16, plotBottom + avgLabelGap - 4);
         var faixa = opts.classify ? opts.classify(avg) : null;
-        var tone = CLASS_COLOR[faixa] || '#7A5A2E';
+        var tone = faixa ? ovStatus(faixa).accent : '#7A5A2E';
         var valTxt = g.label+': '+fmtDec(avg,2)+(opts.suffix||'');
         var chipW = Math.max(34, valTxt.length*4.6+8);
         var chip = '<rect x="'+(midX-chipW/2)+'" y="'+(textY-9)+'" width="'+chipW+'" height="12" rx="3" fill="var(--surface)" opacity="0.92"/>';
@@ -1755,176 +1755,6 @@
       document.getElementById('filterBar').classList.toggle('hidden', !FILTER_BAR_TABS[target]);
     });
   });
-
-  // ---------- Tendência (Chart.js) ----------
-  var trendChart = null;
-  var trendActiveIdx = null, trendPinnedIdx = null, trendDocClickBound = false;
-  function hexToRgba(hex, alpha){
-    var h = hex.replace('#','');
-    var r = parseInt(h.substring(0,2),16), g = parseInt(h.substring(2,4),16), b = parseInt(h.substring(4,6),16);
-    return 'rgba('+r+','+g+','+b+','+alpha+')';
-  }
-  // Agrupa a série (já em ordem cronológica) por quadrimestre, calculando a
-  // média de M1 e M2 em cada bloco — usado pra desenhar as caixas de fundo
-  // e o rótulo com os dois valores daquele período.
-  function buildQuadBoxes(serie){
-    var groups = [];
-    serie.forEach(function(p, i){
-      var qk = quadKeyOfDate(p.mes);
-      var last = groups[groups.length-1];
-      if(last && last.key===qk){ last.idx.push(i); }
-      else { groups.push({key:qk, label:quadCode(p.mes), idx:[i]}); }
-    });
-    return groups.map(function(g, gi){
-      function media(campo){
-        var vals = g.idx.map(function(i){ return serie[i][campo]; }).filter(function(v){ return v!=null; });
-        return vals.length ? vals.reduce(function(a,b){ return a+b; },0)/vals.length : null;
-      }
-      return {
-        xMin: g.idx[0]-0.5, xMax: g.idx[g.idx.length-1]+0.5,
-        xMid: (g.idx[0]+g.idx[g.idx.length-1])/2,
-        m1avg: media('m1'), m2avg: media('m2'), label: g.label, tint: gi%2===0
-      };
-    });
-  }
-  // Cor de um ponto: esmaecida quando existe um mês ativo (hover/clique) e
-  // não é este — igual ao comportamento antigo (hover destaca, clique
-  // fixa o destaque até clicar fora).
-  function trendPointColor(baseHex, openHex, idx, abertoIdx){
-    var isOpen = idx>=abertoIdx;
-    var full = isOpen ? '#ffffff' : baseHex;
-    if(trendActiveIdx==null || idx===trendActiveIdx) return full;
-    return hexToRgba(isOpen ? '#cbd5e1' : baseHex, 0.22);
-  }
-  function trendPointRadius(idx){
-    if(trendActiveIdx==null) return 4.5;
-    return idx===trendActiveIdx ? 7 : 3;
-  }
-  function buildTrendChartCombo(canvasId, serie, labels, abertoIdx){
-    var m1Vals = serie.map(function(p){ return p.m1; });
-    var m2Vals = serie.map(function(p){ return p.m2; });
-    var boxes = buildQuadBoxes(serie);
-    var m1Color = '#334155', m2Color = ovStatus('Bom').accent;
-    var annotations = {};
-    boxes.forEach(function(b, i){
-      if(b.tint){ annotations['box'+i] = {type:'box', xMin:b.xMin, xMax:b.xMax, backgroundColor:'rgba(100,116,139,0.05)', borderWidth:0}; }
-      var parts = [];
-      if(b.m1avg!=null) parts.push('M1 '+fmtDec(b.m1avg,2));
-      if(b.m2avg!=null) parts.push('M2 '+fmtDec(b.m2avg,1)+'%');
-      if(parts.length){
-        annotations['label'+i] = {
-          type:'label', xValue:b.xMid, yValue:3.75, yScaleID:'yM1',
-          content:[b.label, parts.join(' · ')], font:[{size:10,weight:'bold'},{size:9.5}],
-          color:['#334155', ovStatus('Bom').badgeText]
-        };
-      }
-    });
-    annotations.metaM1 = {
-      type:'line', yScaleID:'yM1', yMin:2, yMax:2, borderColor:m1Color, borderWidth:1.3, borderDash:[4,4],
-      label:{display:true, content:'Meta M1 (2,00)', position:'start', backgroundColor:m1Color, color:'#fff', font:{size:9.5,weight:'bold'}, padding:4}
-    };
-    annotations.metaM2 = {
-      type:'line', yScaleID:'yM2', yMin:2.5, yMax:2.5, borderColor:m2Color, borderWidth:1.3, borderDash:[4,4],
-      label:{display:true, content:'Meta M2 (2,50%)', position:'end', backgroundColor:m2Color, color:'#fff', font:{size:9.5,weight:'bold'}, padding:4}
-    };
-    var ctx = document.getElementById(canvasId).getContext('2d');
-    var chart = new Chart(ctx, {
-      type:'line',
-      data:{ labels:labels, datasets:[
-        {
-          label:'M1', yAxisID:'yM1', data:m1Vals, spanGaps:true, tension:0.15,
-          borderColor:m1Color, borderWidth:2.5, pointBorderWidth:2,
-          pointRadius:function(c){ return trendPointRadius(c.dataIndex); },
-          pointBackgroundColor:function(c){ return trendPointColor(m1Color, '#ffffff', c.dataIndex, abertoIdx); },
-          pointBorderColor:m1Color,
-          segment:{
-            borderDash: function(c){ return c.p0DataIndex>=(abertoIdx-1) ? [6,6] : undefined; },
-            borderColor: function(c){ return c.p0DataIndex>=(abertoIdx-1) ? '#94a3b8' : m1Color; }
-          }
-        },
-        {
-          label:'M2', yAxisID:'yM2', data:m2Vals, spanGaps:true, tension:0.15,
-          borderColor:m2Color, borderWidth:2.5, pointBorderWidth:2,
-          pointRadius:function(c){ return trendPointRadius(c.dataIndex); },
-          pointBackgroundColor:function(c){ return trendPointColor(m2Color, '#ffffff', c.dataIndex, abertoIdx); },
-          pointBorderColor:m2Color,
-          segment:{
-            borderDash: function(c){ return c.p0DataIndex>=(abertoIdx-1) ? [6,6] : undefined; },
-            borderColor: function(c){ return c.p0DataIndex>=(abertoIdx-1) ? '#94a3b8' : m2Color; }
-          }
-        }
-      ]},
-      options:{
-        responsive:true, maintainAspectRatio:false,
-        interaction:{mode:'index', intersect:false},
-        plugins:{
-          legend:{display:false},
-          tooltip:{ callbacks:{ label:function(c){
-            if(c.parsed.y==null) return ' '+c.dataset.label+': sem dado';
-            var status = c.dataIndex>=abertoIdx ? ' (em aberto)' : '';
-            var suffix = c.dataset.label==='M2' ? '%' : '';
-            var dec = c.dataset.label==='M2' ? 1 : 2;
-            return ' '+c.dataset.label+': '+fmtDec(c.parsed.y,dec)+suffix+status;
-          }}},
-          annotation:{ annotations:annotations }
-        },
-        scales:{
-          yM1:{ type:'linear', position:'left', min:0, max:4, grid:{color:'#f1f5f9'}, ticks:{font:{size:11}}, title:{display:true, text:'M1', font:{size:10.5}} },
-          yM2:{ type:'linear', position:'right', min:0, max:8, grid:{display:false}, ticks:{font:{size:11}, callback:function(v){ return v+'%'; }}, title:{display:true, text:'M2 (%)', font:{size:10.5}} },
-          x:{ grid:{display:false}, ticks:{font:{size:11}} }
-        },
-        onHover:function(evt, elements){
-          if(trendPinnedIdx!=null) return;
-          var idx = (elements && elements.length) ? elements[0].index : null;
-          if(idx !== trendActiveIdx){ trendActiveIdx = idx; chart.update('none'); }
-        },
-        onClick:function(evt, elements){
-          if(!elements || !elements.length) return;
-          var idx = elements[0].index;
-          trendPinnedIdx = (trendPinnedIdx===idx) ? null : idx;
-          trendActiveIdx = trendPinnedIdx;
-          chart.update('none');
-        }
-      }
-    });
-    if(!trendDocClickBound){
-      trendDocClickBound = true;
-      document.addEventListener('click', function(e){
-        if(trendPinnedIdx==null) return;
-        if(e.target.closest && e.target.closest('.canvas-container')) return;
-        trendPinnedIdx = null; trendActiveIdx = null;
-        if(trendChart) trendChart.update('none');
-      });
-    }
-    return chart;
-  }
-  // Um card só (M1 + M2 no mesmo gráfico, eixos duplos): clicar num ponto
-  // destaca aquele mês (esmaece os demais) nas duas séries ao mesmo tempo
-  // — essa é a "relação entre os 2": o tooltip (mode:index) já mostra M1
-  // e M2 juntos pro mesmo mês. Clique fora do gráfico solta o destaque.
-  function renderTrendCharts(serie, d){
-    var labels = serie.map(function(p){ return monthShortLabel(p.mes); });
-    var hojeInicioMes = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
-    var abertoIdx = serie.findIndex(function(p){ return p.mes >= hojeInicioMes; });
-    if(abertoIdx === -1) abertoIdx = serie.length;
-    trendActiveIdx = null; trendPinnedIdx = null;
-
-    document.getElementById('trendRow').innerHTML =
-        '<div class="chart-card"><div class="chart-header">'
-      +   '<div><div class="chart-title">M1 e M2 — mês a mês</div>'
-      +     '<div class="chart-subtitle">Mês de referência ('+refMonthLabel()+'): <strong>M1 '+fmtDec(d.m1,2)+'</strong> · <strong>M2 '+fmtDec(d.m2,1)+'%</strong></div></div>'
-      +   '<div style="display:flex;gap:8px;flex-wrap:wrap;">'
-      +     '<span class="legend-badge"><i style="background:#334155;"></i>M1 (esq.)</span>'
-      +     '<span class="legend-badge"><i style="background:'+ovStatus('Bom').accent+';"></i>M2 (dir.)</span>'
-      +   '</div>'
-      + '</div><div class="canvas-container"><canvas id="chartTrend"></canvas></div>'
-      + '<p class="footnote">Cada ponto já é a janela de '+JANELA_MESES+' meses terminando naquele mês. Clique num ponto pra destacar o mês e comparar M1 com M2 (esmaece os outros); clique fora do gráfico pra soltar. Pontos vazados/tracejados = mês atual em diante, ainda em aberto.</p>'
-      + '</div>';
-
-    if(typeof Chart === 'undefined') return; // sem internet / CDN bloqueado
-    if(trendChart){ trendChart.destroy(); trendChart = null; }
-    trendChart = buildTrendChartCombo('chartTrend', serie, labels, abertoIdx);
-  }
 
   // ---------- Render ----------
   function renderDashboard(record, serieTendencia){
@@ -2051,7 +1881,19 @@
     // janela móvel de JANELA_MESES meses terminando naquele mês (ver
     // calcularSerieTendencia) — não é mais o histórico de vezes que a
     // página foi atualizada.
-    renderTrendCharts(serieTendencia, d);
+    var trend = '<div class="card trend-card-combo">'
+      + '<div class="trend-sub"><h4>M1 mês a mês</h4>'
+        + '<p class="cur">Mês de referência ('+refMonthLabel()+'): '+fmtDec(d.m1,2)+'</p>'
+        + sparkline(serieTendencia.map(function(p){ return {y:p.m1, label:monthShortLabel(p.mes), value:fmtDec(p.m1,2), quadKey:quadKeyOfDate(p.mes), quadLabel:quadCode(p.mes)}; }).filter(function(p){return p.y!=null;}), '#153F35', {quadAvg:true, classify:classificarM1, hideAxis:true})
+        + '</div>'
+      + '<div class="trend-sub"><h4>M2 (%) mês a mês</h4>'
+        + '<p class="cur">Mês de referência ('+refMonthLabel()+'): '+fmtDec(d.m2,2)+'%</p>'
+        + sparkline(serieTendencia.map(function(p){ return {y:p.m2, label:monthShortLabel(p.mes), value:fmtDec(p.m2,2)+'%', quadKey:quadKeyOfDate(p.mes), quadLabel:quadCode(p.mes)}; }).filter(function(p){return p.y!=null;}), '#C68A3D', {quadAvg:true, suffix:'%', classify:classificarM2})
+        + '</div>'
+      + '<p class="footnote">Cada ponto já é a janela de '+JANELA_MESES+' meses terminando naquele mês. Linha tracejada = média do quadrimestre no período exibido.</p>'
+      + '</div>';
+    document.getElementById('trendRow').innerHTML = trend;
+    setupTrendInteractivity();
 
     // Série histórica (tabela): um mês por linha, cada um já calculado com
     // sua própria janela móvel de JANELA_MESES meses (mesmos pontos do
