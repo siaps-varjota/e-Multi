@@ -1467,7 +1467,10 @@
     if(points.length < 2) return '<p class="footnote">Ainda não há leituras suficientes para mostrar a tendência.</p>';
     var hasAvg = !!opts.quadAvg;
     var hideAxis = !!opts.hideAxis;
-    var W=320, padX=14, padTop=20;
+    // W maior porque agora o gráfico ocupa a largura inteira do card (antes
+    // eram 2 cards lado a lado, metade da largura). Sem aumentar o viewBox
+    // junto, o texto/pontos esticariam 2x — ficando enormes.
+    var W=640, padX=16, padTop=20;
     // Com linha de média, reserva uma faixa a mais (avgLabelGap) entre o
     // fundo da área de plotagem e a linha de rótulos dos meses, só pro
     // valor da média caber embaixo da linha tracejada sem encostar em nada.
