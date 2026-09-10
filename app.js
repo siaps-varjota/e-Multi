@@ -1563,6 +1563,72 @@
       + '</div>';
   }
 
+  // ---------- Aba M1: novo layout (gauge + composição + metas num único card) ----------
+  // Card da esquerda: badge de status + gauge (reaproveita buildGauge/CLASS_BANDS_M1,
+  // o mesmo gauge usado em todo o resto do painel) + fórmula + régua de faixas.
+  function m1GaugeCardHTML(m1Value, classificacaoM1, numM1, denM1){
+    var st = ovStatus(classificacaoM1);
+    return '<div class="m1-card">'
+      + '<div>'
+      +   '<div class="m1-gauge-top">'
+      +     '<span class="m1-gauge-top-title">Resultado do indicador</span>'
+      +     '<span class="m1-badge-status" style="background:'+st.badgeBg+';color:'+st.badgeText+';">'+st.icon+' '+(classificacaoM1||'—')+'</span>'
+      +   '</div>'
+      +   '<div class="m1-gauge-wrapper">'+buildGauge(m1Value, 4, CLASS_BANDS_M1, 'needle-m1tab-m1')+'</div>'
+      +   '<div class="m1-gauge-value-row">'
+      +     '<div class="m1-gauge-value" style="color:'+pillHex(classificacaoM1)+';">'+fmtDec(m1Value,2)+'</div>'
+      +     '<div class="m1-gauge-subtext">escala de 0 a 4</div>'
+      +   '</div>'
+      +   '<div class="m1-formula-box">'+fmtInt(numM1)+' atendimentos ÷ '+fmtInt(denM1)+' pessoas</div>'
+      + '</div>'
+      + '<div class="m1-meta-rule">'
+      +   '<div class="m1-rule-item m1-rule-regular">≤1<br>Regular</div>'
+      +   '<div class="m1-rule-item m1-rule-suficiente">&gt;1 e ≤2<br>Suficiente</div>'
+      +   '<div class="m1-rule-item m1-rule-bom">&gt;2 e ≤3<br>Bom</div>'
+      +   '<div class="m1-rule-item m1-rule-otimo">&gt;3<br>Ótimo</div>'
+      + '</div>'
+      + '</div>';
+  }
+
+  // Cards da direita: Numerador/Denominador do M1, no novo visual de barra
+  // empilhada + lista de itens (mesmos dados de sempre: atendIndGauge/
+  // participColGauge/denM1Gauge — só muda a apresentação).
+  function m1CompCardHTML(title, totalLabel, total, segments){
+    var bars = segments.map(function(s){
+      var pct = total>0 ? (s.value/total*100) : 0;
+      return '<div class="m1-bar-segment" style="width:'+pct+'%;background:'+s.color+';"></div>';
+    }).join('');
+    var rows = segments.map(function(s){
+      return '<div class="m1-item-row">'
+        + '<span class="m1-item-label"><span class="m1-dot" style="background:'+s.color+';"></span>'+s.label+'</span>'
+        + '<span style="font-weight:700;">'+fmtInt(s.value)+'</span>'
+        + '</div>';
+    }).join('');
+    return '<div class="m1-card" style="padding:18px 20px;">'
+      + '<div class="m1-section-title"><span>'+title+'</span><span style="font-size:.8125rem;font-weight:700;color:var(--ink);">'+totalLabel+'</span></div>'
+      + '<div class="m1-stacked-bar">'+bars+'</div>'
+      + '<div class="m1-item-list">'+rows+'</div>'
+      + '</div>';
+  }
+
+  // Diagnóstico de metas do M1 no novo visual (caixa por faixa + tag de
+  // "faltam X"), usando os mesmos números já calculados em
+  // calcularMetasQuadrimestre (alvo com Math.ceil, faltam reais).
+  function m1DiagnosticoHTML(base, metaM1){
+    var rows = metaM1.cards.map(function(c){
+      var ok = c.faltam<=0;
+      return '<div class="m1-meta-target-item">'
+        + '<div><div class="m1-mt-lbl" style="color:'+c.color+';">• '+c.label+'</div>'
+        +   '<div class="m1-mt-sub">Alvo: '+fmtInt(c.alvo)+' '+c.unidade+' (base: '+fmtInt(base)+' pessoas)</div></div>'
+        + '<div class="m1-missing-tag'+(ok?' ok':'')+'">'+(ok?'Meta atingida ✓':'faltam '+fmtInt(c.faltam)+' '+c.unidade)+'</div>'
+        + '</div>';
+    }).join('');
+    return '<div class="m1-diagnostic-card">'
+      + '<div class="m1-section-title" style="margin-bottom:6px;"><span>Meta do Quadrimestre</span>'+(metaM1.preliminar ? '<span class="m1-pill-preliminar">Preliminar</span>' : '')+'</div>'
+      + rows
+      + '</div>';
+  }
+
   function calcularMetasQuadrimestre(numerador, denominador, thresholds, unidade, unidadeFaltam){
     var meses = mesesDoQuadrimestre(quadSelecionado.ano, quadSelecionado.qIndex);
     var inicioQuad = new Date(meses[0].getFullYear(), meses[0].getMonth(), 1, 0,0,0,0);
@@ -1874,16 +1940,18 @@
         metaQuadrimestreHTML('Meta do quadrimestre — M1', d.denominadorM1, 'pessoas atendidas', metaM1.cards, metaM1.preliminar)
       + metaQuadrimestreHTML('Meta do quadrimestre — M2', d.denominadorM2, 'ações realizadas', metaM2.cards, metaM2.preliminar);
 
-    // ---- Aba M1: gauge + composição do M1 + listas ----
+    // ---- Aba M1: novo layout (gauge + composição + metas) + listas ----
     document.getElementById('gaugeRowM1').innerHTML =
-      gaugeCardHTML('M1 — Média de atendimentos por pessoa',
-        'Atendimentos individuais + coletivos ÷ pessoas atendidas',
-        d.m1, 4, CLASS_BANDS_M1, 'needle-m1tab-m1', fmtDec(d.m1,2), d.classificacaoM1,
-        fmtInt(numM1Gauge)+' atendimentos ÷ '+fmtInt(denM1Gauge)+' pessoas', LEGEND_M1);
+      m1GaugeCardHTML(d.m1, d.classificacaoM1, numM1Gauge, denM1Gauge);
     document.getElementById('compRowM1').innerHTML =
-        '<div class="card comp-card"><h4>Numerador do M1</h4>'+numM1Bar+'</div>'
-      + '<div class="card comp-card"><h4>Denominador do M1</h4>'+denM1Bar+'</div>'
-      + metaQuadrimestreMiniHTML(d.denominadorM1, 'pessoas atendidas', metaM1.cards, metaM1.preliminar);
+        m1CompCardHTML('Numerador do M1', fmtInt(numM1Gauge)+' atendimentos', numM1Gauge, [
+          {label:'Atendimentos individuais', value:atendIndGauge, color:'#153F35'},
+          {label:'Participações coletivas', value:participColGauge, color:'#C68A3D'}
+        ])
+      + m1CompCardHTML('Denominador do M1', fmtInt(denM1Gauge)+' pessoas', denM1Gauge, [
+          {label:'Pessoas atendidas', value:denM1Gauge, color:'#153F35'}
+        ])
+      + m1DiagnosticoHTML(d.denominadorM1, metaM1);
     renderListsSection('listsM1', m1ListNames());
 
     // ---- Aba M2: gauge + composição do M2 + listas ----
