@@ -1351,12 +1351,14 @@
   // Anel de progresso (valor ÷ domainMax) — usado no lugar do arco meia-lua
   // nos cartões da Visão geral.
   function ovRingSVG(value, domainMax, st){
-    var size=84, r=34, cx=size/2, cy=size/2, circ=2*Math.PI*r;
+    // Anel 30% maior que o original (84 -> 109), raio e espessura do traço
+    // escalados na mesma proporção pra manter as proporções do desenho.
+    var size=109, r=44, cx=size/2, cy=size/2, circ=2*Math.PI*r;
     var frac = (value==null || !domainMax) ? 0 : Math.max(0, Math.min(1, value/domainMax));
     var dash = (circ*frac).toFixed(1);
     return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 '+size+' '+size+'">'
-      + '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="'+st.badgeBg+'" stroke-width="9"/>'
-      + '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="'+st.accent+'" stroke-width="9" '
+      + '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="'+st.badgeBg+'" stroke-width="12"/>'
+      + '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="'+st.accent+'" stroke-width="12" '
       +   'stroke-linecap="round" stroke-dasharray="'+dash+' '+circ.toFixed(1)+'" '
       +   'transform="rotate(-90 '+cx+' '+cy+')"/>'
       + '</svg>';
@@ -1940,18 +1942,17 @@
         metaQuadrimestreHTML('Meta do quadrimestre — M1', d.denominadorM1, 'pessoas atendidas', metaM1.cards, metaM1.preliminar)
       + metaQuadrimestreHTML('Meta do quadrimestre — M2', d.denominadorM2, 'ações realizadas', metaM2.cards, metaM2.preliminar);
 
-    // ---- Aba M1: novo layout (gauge + composição + metas) + listas ----
+    // ---- Aba M1: mesmo layout/estilo da aba M2 (gauge padrão +
+    // comp-card de Numerador/Denominador + meta mini) + listas ----
     document.getElementById('gaugeRowM1').innerHTML =
-      m1GaugeCardHTML(d.m1, d.classificacaoM1, numM1Gauge, denM1Gauge);
+      gaugeCardHTML('M1 — Média de atendimentos por pessoa',
+        'Atendimentos individuais + coletivos ÷ pessoas atendidas',
+        d.m1, 4, CLASS_BANDS_M1, 'needle-m1tab-m1', fmtDec(d.m1,2), d.classificacaoM1,
+        fmtInt(numM1Gauge)+' atendimentos ÷ '+fmtInt(denM1Gauge)+' pessoas', LEGEND_M1);
     document.getElementById('compRowM1').innerHTML =
-        m1CompCardHTML('Numerador do M1', fmtInt(numM1Gauge)+' atendimentos', numM1Gauge, [
-          {label:'Atendimentos individuais', value:atendIndGauge, color:'#153F35'},
-          {label:'Participações coletivas', value:participColGauge, color:'#C68A3D'}
-        ])
-      + m1CompCardHTML('Denominador do M1', fmtInt(denM1Gauge)+' pessoas', denM1Gauge, [
-          {label:'Pessoas atendidas', value:denM1Gauge, color:'#153F35'}
-        ])
-      + m1DiagnosticoHTML(d.denominadorM1, metaM1);
+        '<div class="card comp-card"><h4>Numerador do M1</h4>'+numM1Bar+'</div>'
+      + '<div class="card comp-card"><h4>Denominador do M1</h4>'+denM1Bar+'</div>'
+      + metaQuadrimestreMiniHTML(d.denominadorM1, 'pessoas atendidas', metaM1.cards, metaM1.preliminar);
     renderListsSection('listsM1', m1ListNames());
 
     // ---- Aba M2: gauge + composição do M2 + listas ----
