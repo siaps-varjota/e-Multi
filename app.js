@@ -1919,7 +1919,7 @@
           anterior:quadAnterior.m1, legend:OV_LEGEND_M1
         })
       + overviewCardHTML({
-          iconKind:'users', title:'M2 — Ações Interprofissionais Identificáveis (Proxy)', classe:d.classificacaoM2,
+          iconKind:'users', title:'M2 — Ações Interprofissionais', classe:d.classificacaoM2,
           value:d.m2, domainMax:8, decimals:1, suffix:'%',
           valueTxt:fmtDec(d.m2,1)+'%', valueCap:fmtInt(numM2Gauge)+' compartilhadas ÷ '+fmtInt(denM2Gauge)+' ações',
           ringTxt:fmtDec(d.m2,1), scaleCap:'de 8%',
