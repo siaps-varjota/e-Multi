@@ -224,7 +224,7 @@
      SVG do anel (ver ovRingSVG em app.js). */
   .ov-ring-wrap{display:flex;flex-direction:column;align-items:center;flex:0 0 auto;}
   .ov-ring-center{
-    margin-top:-16px;display:flex;flex-direction:column;
+    margin-top:12px;display:flex;flex-direction:column;
     align-items:center;justify-content:center;
   }
   .ov-ring-value{font-size:21px;font-weight:700;color:var(--ink);}
