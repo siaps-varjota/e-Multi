@@ -1390,13 +1390,17 @@
   // Régua de faixas (Regular → Ótimo) no rodapé do card, cada chip com a
   // cor do respectivo status.
   function ovLegendHTML(items){
-    return '<div class="ov-legend"><div class="ov-legend-bar">' + items.map(function(it){
+    var bar = items.map(function(it){
       var st = ovStatus(it.classe);
-      return '<span class="ov-legend-chip" style="background:'+st.badgeBg+';">'
-        + '<span class="ov-legend-cond">'+it.cond+'</span>'
-        + '<span class="ov-legend-classe">'+it.classe+'</span>'
-        + '</span>';
-    }).join('') + '</div></div>';
+      return '<span style="background:'+st.badgeBg+';"></span>';
+    }).join('');
+    var labels = items.map(function(it){
+      return '<span class="ov-legend-label"><b>'+it.cond+'</b> '+it.classe+'</span>';
+    }).join('');
+    return '<div class="ov-legend">'
+      + '<div class="ov-legend-bar">'+bar+'</div>'
+      + '<div class="ov-legend-labels">'+labels+'</div>'
+      + '</div>';
   }
   var OV_LEGEND_M1 = [
     {classe:'Regular',    cond:'≤ 1'},
