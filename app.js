@@ -289,7 +289,7 @@
         atendimentosIndividuais: soma('atendimentosIndividuais'),
         participacoesColetivas: soma('participacoesColetivas'),
         numeradorM1: soma('numeradorM1'),
-        denominadorM1: soma('denominadorM1'),
+        denominadorM1: pessoasLista.length,
         // Versões "janela": média das 4 janelas móveis que compõem o
         // m1/m2 acima — usadas nos cards de Composição e na legenda do
         // gauge, pra tudo bater com o valor do ponteiro. Meta do
