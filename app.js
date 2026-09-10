@@ -1552,8 +1552,9 @@
       return '<div class="meta-mini-row">'
         + '<div class="meta-mini-row-left">'
         +   '<span class="meta-mini-dot" style="background:'+c.color+'"></span>'
-        +   '<div><p class="meta-mini-label">'+c.label+'</p>'
-        +     '<p class="meta-mini-sub">Alvo: '+fmtInt(c.alvo)+' '+c.unidade+'</p></div>'
+        +   '<div><p class="meta-mini-label" style="color:'+c.color+';">'+c.label+'</p>'
+        +     '<p class="meta-mini-sub">Alvo: '+fmtInt(c.alvo)+' '+c.unidade+'</p>'
+        +     '<p class="meta-mini-basenote">(base de '+fmtInt(base)+' '+baseLabel+')</p></div>'
         + '</div>'
         + status
         + '</div>';
@@ -1561,7 +1562,6 @@
     return '<div class="card comp-card meta-mini-card">'
       + '<h4>Meta do quadrimestre'+(preliminar ? ' <span class="pill-preliminar-mini">Preliminar</span>' : '')+'</h4>'
       + '<div class="meta-mini-rows">'+rows+'</div>'
-      + '<p class="meta-mini-foot">de '+fmtInt(base)+' '+baseLabel+'</p>'
       + '</div>';
   }
 
