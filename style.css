@@ -204,7 +204,7 @@
 
   /* ---------- Cards da Visão geral (ícone + anel + evolução) ---------- */
   .ov-card{flex:1;min-width:300px;display:flex;flex-direction:column;}
-  .ov-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px;min-height:74px;}
+  .ov-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px;min-height:48px;}
   .ov-head-left{display:flex;align-items:center;gap:10px;}
   .ov-icon{width:34px;height:34px;border-radius:9px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;}
   .ov-icon svg{width:18px;height:18px;}
