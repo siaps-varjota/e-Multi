@@ -1351,7 +1351,7 @@
   }
   // Anel de progresso (valor ÷ domainMax) — usado no lugar do arco meia-lua
   // nos cartões da Visão geral.
-  function ovRingSVG(value, domainMax, bands, classeAtual, st){
+  function ovRingSVG(value, domainMax, bands, classeAtual, st, gaugeId){
     // Meia lua (mesmo desenho do gauge das abas M1/M2, só que em miniatura
     // pra caber no card da Visão geral): faixas proporcionais ao domainMax,
     // só a faixa do valor atual em cor cheia, as demais esmaecidas, e um
@@ -1374,11 +1374,17 @@
       return '<path d="'+arcPath(cx,cy,r,a1,a2)+'" stroke="'+b.color+'" stroke-width="'+thick+'" fill="none" stroke-opacity="'+(ativa?1:0.22)+'"/>';
     }).join('');
     var frac = (value===null || value===undefined || isNaN(value)) ? 0 : Math.max(0, Math.min(1, value/domainMax));
-    var angle = 180 - frac*180;
+    var targetAngle = 180 - frac*180;
+    var needleRotation = 180 - targetAngle; // graus a girar o ponteiro (que nasce apontando p/ 0)
     var needleLen = r - thick/2 - 5;
-    var tip = polar(cx,cy,needleLen,angle);
-    var needleSvg = '<line x1="'+cx+'" y1="'+cy+'" x2="'+tip.x+'" y2="'+tip.y+'" stroke="#13241F" stroke-width="2.5" stroke-linecap="round"/>'
-      + '<circle cx="'+cx+'" cy="'+cy+'" r="4.5" fill="#13241F"/>';
+    var tipBase = polar(cx,cy,needleLen,180);
+    // Ponteiro sempre desenhado apontando pra "0" (esquerda) e girado até o
+    // valor real via CSS (.gauge-needle + --target-angle) — mesma técnica
+    // usada no gauge de meia lua das abas M1/M2, pra ter o mesmo efeito de
+    // movimento em vez de aparecer já na posição final.
+    var needleSvg = '<g id="'+gaugeId+'" class="gauge-needle" style="transform-origin:'+cx+'px '+cy+'px;--target-angle:'+needleRotation+'deg;">'
+      + '<line x1="'+cx+'" y1="'+cy+'" x2="'+tipBase.x+'" y2="'+tipBase.y+'" stroke="#13241F" stroke-width="2.5" stroke-linecap="round"/>'
+      + '<circle cx="'+cx+'" cy="'+cy+'" r="4.5" fill="#13241F"/></g>';
     return '<svg width="'+w+'" height="'+h+'" viewBox="0 0 '+w+' '+h+'">'+bandsSvg+needleSvg+'</svg>';
   }
   // Régua de faixas (Regular → Ótimo) no rodapé do card, cada chip com a
@@ -1476,7 +1482,7 @@
       + '<div class="ov-main">'
       +   '<div class="ov-value-block"><span class="ov-value" style="color:'+st.accent+';">'+opts.valueTxt+'</span>'
       +     '<span class="ov-value-cap">'+opts.valueCap+'</span></div>'
-      +   '<div class="ov-ring-wrap">'+ovRingSVG(opts.value, opts.domainMax, opts.bands, opts.classe, st)
+      +   '<div class="ov-ring-wrap">'+ovRingSVG(opts.value, opts.domainMax, opts.bands, opts.classe, st, opts.gaugeId)
       +     '<div class="ov-ring-center"><span class="ov-ring-value">'+opts.ringTxt+'</span>'
       +       '<span class="ov-ring-scale">'+opts.scaleCap+'</span></div></div>'
       + '</div>'
@@ -1931,21 +1937,21 @@
     document.getElementById('gaugeRow').innerHTML =
         overviewCardHTML({
           iconKind:'pulse', title:'M1 — Média de Atendimentos por Pessoa', classe:d.classificacaoM1,
-          value:d.m1, domainMax:4, decimals:2, suffix:'', bands:CLASS_BANDS_M1,
+          value:d.m1, domainMax:4, decimals:2, suffix:'', bands:CLASS_BANDS_M1, gaugeId:'ovGaugeM1',
           valueTxt:fmtDec(d.m1,2), valueCap:fmtInt(numM1Gauge)+' atendimentos ÷ '+fmtInt(denM1Gauge)+' pessoas',
           ringTxt:fmtDec(d.m1,2), scaleCap:'de 4',
           anterior:quadAnterior.m1, legend:OV_LEGEND_M1
         })
       + overviewCardHTML({
           iconKind:'users', title:'M2 — Ações Interprofissionais', classe:d.classificacaoM2,
-          value:d.m2, domainMax:8, decimals:1, suffix:'%', bands:CLASS_BANDS_M2,
+          value:d.m2, domainMax:8, decimals:1, suffix:'%', bands:CLASS_BANDS_M2, gaugeId:'ovGaugeM2',
           valueTxt:fmtDec(d.m2,1)+'%', valueCap:fmtInt(numM2Gauge)+' compartilhadas ÷ '+fmtInt(denM2Gauge)+' ações',
           ringTxt:fmtDec(d.m2,1), scaleCap:'de 8%',
           anterior:quadAnterior.m2, legend:OV_LEGEND_M2
         })
       + overviewCardHTML({
           iconKind:'speed', title:'Desempenho Quadrimestral', classe:d.desempenho,
-          value:d.notaFinal, domainMax:10, decimals:1, suffix:'', bands:CLASS_BANDS_NOTA,
+          value:d.notaFinal, domainMax:10, decimals:1, suffix:'', bands:CLASS_BANDS_NOTA, gaugeId:'ovGaugeNota',
           valueTxt:fmtDec(d.notaFinal,1), valueCap:'M1: '+fmtDec(d.pontosM1,1)+' ('+(d.classificacaoM1||'—')+') · M2: '+fmtDec(d.pontosM2,1)+' ('+(d.classificacaoM2||'—')+') | Pesos: 6 + 4',
           ringTxt:fmtDec(d.notaFinal,1), scaleCap:'de 10',
           anterior:quadAnterior.notaFinal, legend:OV_LEGEND_NOTA
