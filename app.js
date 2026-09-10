@@ -15,7 +15,7 @@
   // Quantos pontos (meses) mostrar nos gráficos de tendência — cada ponto
   // é o M1/M2 daquele mês, já calculado com sua própria janela de
   // JANELA_MESES meses terminando naquele mês.
-  var TREND_MESES = 8;
+  var TREND_MESES = 16;
   // ---- Filtro principal da Visão geral: Quadrimestre + Mês (opcional) ----
   // Quadrimestres fixos do ano civil: Q1 Jan–Abr, Q2 Mai–Ago, Q3 Set–Dez.
   var QUAD_LABELS = ['Jan–Abr (Q1)', 'Mai–Ago (Q2)', 'Set–Dez (Q3)'];
@@ -1466,6 +1466,7 @@
     opts = opts || {};
     if(points.length < 2) return '<p class="footnote">Ainda não há leituras suficientes para mostrar a tendência.</p>';
     var hasAvg = !!opts.quadAvg;
+    var hideAxis = !!opts.hideAxis;
     var W=320, padX=14, padTop=20;
     // Com linha de média, reserva uma faixa a mais (avgLabelGap) entre o
     // fundo da área de plotagem e a linha de rótulos dos meses, só pro
@@ -1473,8 +1474,11 @@
     var plotH = hasAvg ? 54 : 66;
     var plotBottom = padTop + plotH;
     var avgLabelGap = hasAvg ? 22 : 0;
-    var axisY = plotBottom + avgLabelGap + 10;
-    var H = axisY + 4;
+    // Sem eixo de meses (gráfico de cima, empilhado, que compartilha o
+    // eixo do gráfico de baixo): não reserva a faixa de rótulo dos meses,
+    // só o respiro mínimo pro texto da média não cortar.
+    var axisY = hideAxis ? null : plotBottom + avgLabelGap + 10;
+    var H = hideAxis ? (plotBottom + avgLabelGap + 4) : (axisY + 4);
 
     var vals = points.map(function(p){return p.y;});
     var min = Math.min.apply(null, vals), max = Math.max.apply(null, vals);
@@ -1503,7 +1507,7 @@
         + '<circle class="tp-hit" cx="'+coords[i].x+'" cy="'+coords[i].y+'" r="9" fill="transparent"/>'
         + '<circle class="tp-dot" cx="'+coords[i].x+'" cy="'+coords[i].y+'" r="3.2" fill="'+tone+'"/>'
         + valTxt
-        + '<text class="tp-axis" x="'+coords[i].x+'" y="'+axisY+'" font-size="9" fill="var(--ink-soft)" text-anchor="middle">'+p.label+'</text>'
+        + (hideAxis ? '' : '<text class="tp-axis" x="'+coords[i].x+'" y="'+axisY+'" font-size="9" fill="var(--ink-soft)" text-anchor="middle">'+p.label+'</text>')
         + '</g>';
     }).join("");
 
@@ -1727,15 +1731,15 @@
     // janela móvel de JANELA_MESES meses terminando naquele mês (ver
     // calcularSerieTendencia) — não é mais o histórico de vezes que a
     // página foi atualizada.
-    var trend = '';
-    trend += '<div class="card trend-card"><h4>M1 mês a mês</h4>'
-      + '<p class="cur">Mês de referência ('+refMonthLabel()+'): '+fmtDec(d.m1,2)+'</p>'
-      + sparkline(serieTendencia.map(function(p){ return {y:p.m1, label:monthShortLabel(p.mes), value:fmtDec(p.m1,2), quadKey:quadKeyOfDate(p.mes), quadLabel:quadCode(p.mes)}; }).filter(function(p){return p.y!=null;}), '#153F35', {quadAvg:true, classify:classificarM1})
-      + '<p class="footnote">Cada ponto já é a janela de '+JANELA_MESES+' meses terminando naquele mês. Linha tracejada = média do quadrimestre no período exibido.</p>'
-      + '</div>';
-    trend += '<div class="card trend-card"><h4>M2 (%) mês a mês</h4>'
-      + '<p class="cur">Mês de referência ('+refMonthLabel()+'): '+fmtDec(d.m2,2)+'%</p>'
-      + sparkline(serieTendencia.map(function(p){ return {y:p.m2, label:monthShortLabel(p.mes), value:fmtDec(p.m2,2)+'%', quadKey:quadKeyOfDate(p.mes), quadLabel:quadCode(p.mes)}; }).filter(function(p){return p.y!=null;}), '#C68A3D', {quadAvg:true, suffix:'%', classify:classificarM2})
+    var trend = '<div class="card trend-card-combo">'
+      + '<div class="trend-sub"><h4>M1 mês a mês</h4>'
+        + '<p class="cur">Mês de referência ('+refMonthLabel()+'): '+fmtDec(d.m1,2)+'</p>'
+        + sparkline(serieTendencia.map(function(p){ return {y:p.m1, label:monthShortLabel(p.mes), value:fmtDec(p.m1,2), quadKey:quadKeyOfDate(p.mes), quadLabel:quadCode(p.mes)}; }).filter(function(p){return p.y!=null;}), '#153F35', {quadAvg:true, classify:classificarM1, hideAxis:true})
+        + '</div>'
+      + '<div class="trend-sub"><h4>M2 (%) mês a mês</h4>'
+        + '<p class="cur">Mês de referência ('+refMonthLabel()+'): '+fmtDec(d.m2,2)+'%</p>'
+        + sparkline(serieTendencia.map(function(p){ return {y:p.m2, label:monthShortLabel(p.mes), value:fmtDec(p.m2,2)+'%', quadKey:quadKeyOfDate(p.mes), quadLabel:quadCode(p.mes)}; }).filter(function(p){return p.y!=null;}), '#C68A3D', {quadAvg:true, suffix:'%', classify:classificarM2})
+        + '</div>'
       + '<p class="footnote">Cada ponto já é a janela de '+JANELA_MESES+' meses terminando naquele mês. Linha tracejada = média do quadrimestre no período exibido.</p>'
       + '</div>';
     document.getElementById('trendRow').innerHTML = trend;
