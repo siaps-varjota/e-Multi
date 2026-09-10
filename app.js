@@ -1352,39 +1352,34 @@
   // Anel de progresso (valor ÷ domainMax) — usado no lugar do arco meia-lua
   // nos cartões da Visão geral.
   function ovRingSVG(value, domainMax, bands, classeAtual, st){
-    // Anel 30% maior que o original (84 -> 109), raio e espessura do traço
-    // escalados na mesma proporção pra manter as proporções do desenho.
-    var size=109, r=44, cx=size/2, cy=size/2, circ=2*Math.PI*r;
+    // Meia lua (mesmo desenho do gauge das abas M1/M2, só que em miniatura
+    // pra caber no card da Visão geral): faixas proporcionais ao domainMax,
+    // só a faixa do valor atual em cor cheia, as demais esmaecidas, e um
+    // ponteiro indicando a posição exata do valor.
+    var w=140, h=82, cx=70, cy=74, r=58, thick=14;
     if(!bands || !bands.length){
-      // fallback: comportamento antigo (progresso de 2 tons) pra quem não
-      // passar faixas.
-      var frac = (value==null || !domainMax) ? 0 : Math.max(0, Math.min(1, value/domainMax));
-      var dash = (circ*frac).toFixed(1);
-      return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 '+size+' '+size+'">'
-        + '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="'+st.badgeBg+'" stroke-width="12"/>'
-        + '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="'+st.accent+'" stroke-width="12" '
-        +   'stroke-linecap="round" stroke-dasharray="'+dash+' '+circ.toFixed(1)+'" '
-        +   'transform="rotate(-90 '+cx+' '+cy+')"/>'
+      // fallback: se não vier bands, desenha só uma faixa cheia até o valor
+      // (mesma lógica de antes, em formato de meia lua).
+      var frac0 = (value==null || !domainMax) ? 0 : Math.max(0, Math.min(1, value/domainMax));
+      var a0 = 180 - frac0*180;
+      return '<svg width="'+w+'" height="'+h+'" viewBox="0 0 '+w+' '+h+'">'
+        + '<path d="'+arcPath(cx,cy,r,180,0)+'" stroke="'+st.badgeBg+'" stroke-width="'+thick+'" fill="none"/>'
+        + '<path d="'+arcPath(cx,cy,r,180,a0)+'" stroke="'+st.accent+'" stroke-width="'+thick+'" fill="none" stroke-linecap="round"/>'
         + '</svg>';
     }
-    // Uma faixa por status (Regular/Suficiente/Bom/Ótimo), proporcional ao
-    // seu intervalo dentro do domainMax. Só a faixa que contém o valor
-    // atual aparece em cor cheia; as demais ficam esmaecidas — assim o
-    // anel já mostra onde o resultado está dentro da régua inteira, sem
-    // precisar olhar a legenda embaixo do card.
     var bandsSvg = bands.map(function(b){
-      var fracFrom = Math.max(0, Math.min(1, b.from/domainMax));
-      var fracTo = Math.max(0, Math.min(1, b.to/domainMax));
-      var len = circ*(fracTo-fracFrom);
-      var prevLen = circ*fracFrom;
+      var a1 = 180 - (b.from/domainMax)*180;
+      var a2 = 180 - (b.to/domainMax)*180;
       var ativa = (b.classe === classeAtual);
-      return '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="'+b.color+'" stroke-width="12" '
-        +   'stroke-dasharray="'+len.toFixed(2)+' '+(circ-len).toFixed(2)+'" '
-        +   'stroke-dashoffset="'+(-prevLen).toFixed(2)+'" '
-        +   'stroke-opacity="'+(ativa?1:0.22)+'" '
-        +   'transform="rotate(-90 '+cx+' '+cy+')"/>';
+      return '<path d="'+arcPath(cx,cy,r,a1,a2)+'" stroke="'+b.color+'" stroke-width="'+thick+'" fill="none" stroke-opacity="'+(ativa?1:0.22)+'"/>';
     }).join('');
-    return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 '+size+' '+size+'">'+bandsSvg+'</svg>';
+    var frac = (value===null || value===undefined || isNaN(value)) ? 0 : Math.max(0, Math.min(1, value/domainMax));
+    var angle = 180 - frac*180;
+    var needleLen = r - thick/2 - 5;
+    var tip = polar(cx,cy,needleLen,angle);
+    var needleSvg = '<line x1="'+cx+'" y1="'+cy+'" x2="'+tip.x+'" y2="'+tip.y+'" stroke="#13241F" stroke-width="2.5" stroke-linecap="round"/>'
+      + '<circle cx="'+cx+'" cy="'+cy+'" r="4.5" fill="#13241F"/>';
+    return '<svg width="'+w+'" height="'+h+'" viewBox="0 0 '+w+' '+h+'">'+bandsSvg+needleSvg+'</svg>';
   }
   // Régua de faixas (Regular → Ótimo) no rodapé do card, cada chip com a
   // cor do respectivo status.
