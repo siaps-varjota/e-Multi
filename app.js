@@ -340,10 +340,6 @@
 
   var CLASS_PILL_HEX = {"Ótimo":"#2F6F5E","Bom":"#6B8F71","Suficiente":"#C68A3D","Regular":"#B5474B"};
   var CLASS_ARC_HEX = {"Regular":"#DC4C4C","Suficiente":"#F2A93B","Bom":"#4CAF6D","Ótimo":"#3B7DDD"};
-  // Versões "claras" das cores de classificação, usadas só no badge do
-  // cabeçalho do card de Resultado (fundo tinta suave + texto na cor forte).
-  var CLASS_BADGE_BG = {"Ótimo":"#E8F0FC","Bom":"#EAF6EE","Suficiente":"#FDF1DE","Regular":"#FBEAEA"};
-  var CLASS_BADGE_TEXT = {"Ótimo":"#2E5FA6","Bom":"#2E7D4F","Suficiente":"#9A6A1E","Regular":"#B23A3E"};
 
   // ---------- Listas complementares ----------
   function m1ListNames(){ return ["Atendimentos", "Participantes Ativ. Coletiva", "Pessoas atendidas"].map(suffixedName); }
@@ -1469,23 +1465,12 @@
       + '</div>';
   }
 
-  // Card "Resultado do Indicador" (usado nas abas M1/M2 — o título e a
-  // fórmula do indicador já aparecem em .indicator-tab-head, então este
-  // card foca só no resultado: badge de classificação no topo, gauge,
-  // valor central (colorido na cor da classificação), barra de status
-  // cheia, nota de composição e a legenda das faixas no rodapé.
-  function gaugeCardHTML(value, domainMax, bands, gaugeId, valueHtml, classLabel, note, legend){
-    var arc = arcHex(classLabel);
-    var badgeBg = CLASS_BADGE_BG[classLabel] || '#F1F4EE';
-    var badgeText = CLASS_BADGE_TEXT[classLabel] || 'var(--ink-soft)';
+  function gaugeCardHTML(title, formula, value, domainMax, bands, gaugeId, valueHtml, classLabel, note, legend){
     return '<div class="card gauge-card">'
-      + '<div class="gauge-card-head">'
-      +   '<h3>Resultado do Indicador</h3>'
-      +   '<span class="gauge-badge" style="background:'+badgeBg+';color:'+badgeText+'">'+(classLabel||'—')+'</span>'
-      + '</div>'
+      + '<div class="gauge-header"><h3>'+title+'</h3><p class="formula">'+formula+'</p></div>'
       + buildGauge(value, domainMax, bands, gaugeId)
-      + '<div class="gauge-value" style="color:'+arc+'">'+valueHtml+'</div>'
-      + '<div class="gauge-status-bar" style="background:'+arc+'">'+(classLabel||'—')+'</div>'
+      + '<div class="gauge-value">'+valueHtml+'</div>'
+      + '<span class="pill" style="background:'+pillHex(classLabel)+'">'+(classLabel||'—')+'</span>'
       + (note ? '<p class="gauge-note">'+note+'</p>' : '')
       + (legend ? gaugeLegendHTML(legend) : '')
       + '</div>';
@@ -1870,7 +1855,9 @@
 
     // ---- Aba M1: gauge + composição do M1 + listas ----
     document.getElementById('gaugeRowM1').innerHTML =
-      gaugeCardHTML(d.m1, 4, CLASS_BANDS_M1, 'needle-m1tab-m1', fmtDec(d.m1,2), d.classificacaoM1,
+      gaugeCardHTML('M1 — Média de atendimentos por pessoa',
+        'Atendimentos individuais + coletivos ÷ pessoas atendidas',
+        d.m1, 4, CLASS_BANDS_M1, 'needle-m1tab-m1', fmtDec(d.m1,2), d.classificacaoM1,
         fmtInt(numM1Gauge)+' atendimentos ÷ '+fmtInt(denM1Gauge)+' pessoas', LEGEND_M1);
     document.getElementById('compRowM1').innerHTML =
         '<div class="card comp-card"><h4>Numerador do M1</h4>'+numM1Bar+'</div>'
@@ -1880,7 +1867,9 @@
 
     // ---- Aba M2: gauge + composição do M2 + listas ----
     document.getElementById('gaugeRowM2').innerHTML =
-      gaugeCardHTML(d.m2, 8, CLASS_BANDS_M2, 'needle-m2tab-m2', fmtDec(d.m2,2)+'<span class="unit">%</span>', d.classificacaoM2,
+      gaugeCardHTML('M2 — Ações compartilhadas',
+        'Ações compartilhadas ÷ ações realizadas × 100',
+        d.m2, 8, CLASS_BANDS_M2, 'needle-m2tab-m2', fmtDec(d.m2,2)+'<span class="unit">%</span>', d.classificacaoM2,
         fmtInt(numM2Gauge)+' compartilhadas ÷ '+fmtInt(denM2Gauge)+' ações', LEGEND_M2);
     document.getElementById('compRowM2').innerHTML =
         '<div class="card comp-card"><h4>Numerador do M2</h4>'+numM2Bar+'</div>'
