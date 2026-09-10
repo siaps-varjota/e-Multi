@@ -249,13 +249,17 @@
   .gauge-card .ov-evo-track{height:10px;margin:14px 0 12px;}
   .gauge-card .ov-evo-labels{font-size:13.5px;}
   .gauge-card .ov-evo-labels b{font-size:16px;}
-  .ov-legend{
-    display:flex;flex-wrap:wrap;justify-content:center;gap:6px;margin-top:auto;padding-top:12px;
+  .ov-legend{margin-top:auto;padding-top:12px;}
+  .ov-legend-bar{
+    display:flex;border-radius:8px;overflow:hidden;border:1px solid var(--line);
   }
   .ov-legend-chip{
-    font-size:10.5px;font-weight:600;padding:4px 9px;border-radius:999px;
-    border:1px solid;white-space:nowrap;
+    flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    gap:1px;padding:6px 3px;border-right:1px solid var(--line);text-align:center;
   }
+  .ov-legend-chip:last-child{border-right:none;}
+  .ov-legend-cond{font-size:9.5px;font-weight:600;color:var(--ink-soft);line-height:1.2;}
+  .ov-legend-classe{font-size:11px;font-weight:700;color:var(--ink);line-height:1.2;}
 
   /* ---------- Meta do quadrimestre ---------- */
   .meta-quad-row{display:flex;flex-direction:column;gap:16px;margin-bottom:20px;}
