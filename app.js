@@ -1286,23 +1286,24 @@
   }
 
   var CLASS_BANDS_M1 = [
-    {from:0,to:1,color:arcHex("Regular")},
-    {from:1,to:2,color:arcHex("Suficiente")},
-    {from:2,to:3,color:arcHex("Bom")},
-    {from:3,to:4,color:arcHex("Ótimo")}
+    {from:0,to:1,classe:"Regular",color:arcHex("Regular")},
+    {from:1,to:2,classe:"Suficiente",color:arcHex("Suficiente")},
+    {from:2,to:3,classe:"Bom",color:arcHex("Bom")},
+    {from:3,to:4,classe:"Ótimo",color:arcHex("Ótimo")}
   ];
   var CLASS_BANDS_M2 = [
-    {from:0,to:1,color:arcHex("Regular")},
-    {from:1,to:2.5,color:arcHex("Suficiente")},
-    {from:2.5,to:5,color:arcHex("Bom")},
-    {from:5,to:8,color:arcHex("Ótimo")}
+    {from:0,to:1,classe:"Regular",color:arcHex("Regular")},
+    {from:1,to:2.5,classe:"Suficiente",color:arcHex("Suficiente")},
+    {from:2.5,to:5,classe:"Bom",color:arcHex("Bom")},
+    {from:5,to:8,classe:"Ótimo",color:arcHex("Ótimo")}
   ];
   var CLASS_BANDS_NOTA = [
-    {from:0,to:2.5,color:arcHex("Regular")},
-    {from:2.5,to:5,color:arcHex("Suficiente")},
-    {from:5,to:7.5,color:arcHex("Bom")},
-    {from:7.5,to:10,color:arcHex("Ótimo")}
+    {from:0,to:2.5,classe:"Regular",color:arcHex("Regular")},
+    {from:2.5,to:5,classe:"Suficiente",color:arcHex("Suficiente")},
+    {from:5,to:7.5,classe:"Bom",color:arcHex("Bom")},
+    {from:7.5,to:10,classe:"Ótimo",color:arcHex("Ótimo")}
   ];
+
 
   function gaugeLegendHTML(items){
     return '<div class="gauge-legend">' + items.map(function(it){
@@ -1350,18 +1351,40 @@
   }
   // Anel de progresso (valor ÷ domainMax) — usado no lugar do arco meia-lua
   // nos cartões da Visão geral.
-  function ovRingSVG(value, domainMax, st){
+  function ovRingSVG(value, domainMax, bands, classeAtual, st){
     // Anel 30% maior que o original (84 -> 109), raio e espessura do traço
     // escalados na mesma proporção pra manter as proporções do desenho.
     var size=109, r=44, cx=size/2, cy=size/2, circ=2*Math.PI*r;
-    var frac = (value==null || !domainMax) ? 0 : Math.max(0, Math.min(1, value/domainMax));
-    var dash = (circ*frac).toFixed(1);
-    return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 '+size+' '+size+'">'
-      + '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="'+st.badgeBg+'" stroke-width="12"/>'
-      + '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="'+st.accent+'" stroke-width="12" '
-      +   'stroke-linecap="round" stroke-dasharray="'+dash+' '+circ.toFixed(1)+'" '
-      +   'transform="rotate(-90 '+cx+' '+cy+')"/>'
-      + '</svg>';
+    if(!bands || !bands.length){
+      // fallback: comportamento antigo (progresso de 2 tons) pra quem não
+      // passar faixas.
+      var frac = (value==null || !domainMax) ? 0 : Math.max(0, Math.min(1, value/domainMax));
+      var dash = (circ*frac).toFixed(1);
+      return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 '+size+' '+size+'">'
+        + '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="'+st.badgeBg+'" stroke-width="12"/>'
+        + '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="'+st.accent+'" stroke-width="12" '
+        +   'stroke-linecap="round" stroke-dasharray="'+dash+' '+circ.toFixed(1)+'" '
+        +   'transform="rotate(-90 '+cx+' '+cy+')"/>'
+        + '</svg>';
+    }
+    // Uma faixa por status (Regular/Suficiente/Bom/Ótimo), proporcional ao
+    // seu intervalo dentro do domainMax. Só a faixa que contém o valor
+    // atual aparece em cor cheia; as demais ficam esmaecidas — assim o
+    // anel já mostra onde o resultado está dentro da régua inteira, sem
+    // precisar olhar a legenda embaixo do card.
+    var bandsSvg = bands.map(function(b){
+      var fracFrom = Math.max(0, Math.min(1, b.from/domainMax));
+      var fracTo = Math.max(0, Math.min(1, b.to/domainMax));
+      var len = circ*(fracTo-fracFrom);
+      var prevLen = circ*fracFrom;
+      var ativa = (b.classe === classeAtual);
+      return '<circle cx="'+cx+'" cy="'+cy+'" r="'+r+'" fill="none" stroke="'+b.color+'" stroke-width="12" '
+        +   'stroke-dasharray="'+len.toFixed(2)+' '+(circ-len).toFixed(2)+'" '
+        +   'stroke-dashoffset="'+(-prevLen).toFixed(2)+'" '
+        +   'stroke-opacity="'+(ativa?1:0.22)+'" '
+        +   'transform="rotate(-90 '+cx+' '+cy+')"/>';
+    }).join('');
+    return '<svg width="'+size+'" height="'+size+'" viewBox="0 0 '+size+' '+size+'">'+bandsSvg+'</svg>';
   }
   // Régua de faixas (Regular → Ótimo) no rodapé do card, cada chip com a
   // cor do respectivo status.
@@ -1458,7 +1481,7 @@
       + '<div class="ov-main">'
       +   '<div class="ov-value-block"><span class="ov-value" style="color:'+st.accent+';">'+opts.valueTxt+'</span>'
       +     '<span class="ov-value-cap">'+opts.valueCap+'</span></div>'
-      +   '<div class="ov-ring-wrap">'+ovRingSVG(opts.value, opts.domainMax, st)
+      +   '<div class="ov-ring-wrap">'+ovRingSVG(opts.value, opts.domainMax, opts.bands, opts.classe, st)
       +     '<div class="ov-ring-center"><span class="ov-ring-value">'+opts.ringTxt+'</span>'
       +       '<span class="ov-ring-scale">'+opts.scaleCap+'</span></div></div>'
       + '</div>'
@@ -1913,21 +1936,21 @@
     document.getElementById('gaugeRow').innerHTML =
         overviewCardHTML({
           iconKind:'pulse', title:'M1 — Média de Atendimentos por Pessoa', classe:d.classificacaoM1,
-          value:d.m1, domainMax:4, decimals:2, suffix:'',
+          value:d.m1, domainMax:4, decimals:2, suffix:'', bands:CLASS_BANDS_M1,
           valueTxt:fmtDec(d.m1,2), valueCap:fmtInt(numM1Gauge)+' atendimentos ÷ '+fmtInt(denM1Gauge)+' pessoas',
           ringTxt:fmtDec(d.m1,2), scaleCap:'de 4',
           anterior:quadAnterior.m1, legend:OV_LEGEND_M1
         })
       + overviewCardHTML({
           iconKind:'users', title:'M2 — Ações Interprofissionais', classe:d.classificacaoM2,
-          value:d.m2, domainMax:8, decimals:1, suffix:'%',
+          value:d.m2, domainMax:8, decimals:1, suffix:'%', bands:CLASS_BANDS_M2,
           valueTxt:fmtDec(d.m2,1)+'%', valueCap:fmtInt(numM2Gauge)+' compartilhadas ÷ '+fmtInt(denM2Gauge)+' ações',
           ringTxt:fmtDec(d.m2,1), scaleCap:'de 8%',
           anterior:quadAnterior.m2, legend:OV_LEGEND_M2
         })
       + overviewCardHTML({
           iconKind:'speed', title:'Desempenho Quadrimestral', classe:d.desempenho,
-          value:d.notaFinal, domainMax:10, decimals:1, suffix:'',
+          value:d.notaFinal, domainMax:10, decimals:1, suffix:'', bands:CLASS_BANDS_NOTA,
           valueTxt:fmtDec(d.notaFinal,1), valueCap:'M1: '+fmtDec(d.pontosM1,1)+' ('+(d.classificacaoM1||'—')+') · M2: '+fmtDec(d.pontosM2,1)+' ('+(d.classificacaoM2||'—')+') | Pesos: 6 + 4',
           ringTxt:fmtDec(d.notaFinal,1), scaleCap:'de 10',
           anterior:quadAnterior.notaFinal, legend:OV_LEGEND_NOTA
