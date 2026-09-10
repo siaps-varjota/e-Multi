@@ -1756,6 +1756,121 @@
     });
   });
 
+  // ---------- Tendência (Chart.js) ----------
+  var trendChartM1 = null, trendChartM2 = null;
+  function hexToRgba(hex, alpha){
+    var h = hex.replace('#','');
+    var r = parseInt(h.substring(0,2),16), g = parseInt(h.substring(2,4),16), b = parseInt(h.substring(4,6),16);
+    return 'rgba('+r+','+g+','+b+','+alpha+')';
+  }
+  // Agrupa a série (já em ordem cronológica) por quadrimestre, calculando a
+  // média de `campo` em cada bloco — usado pra desenhar as caixas de fundo
+  // e o rótulo "Q.../..: média" de cada uma, coloridas pela classificação
+  // daquele quadrimestre (mesma paleta de status dos cards da Visão geral).
+  function buildQuadBoxes(serie, campo, classify){
+    var groups = [];
+    serie.forEach(function(p, i){
+      var qk = quadKeyOfDate(p.mes);
+      var last = groups[groups.length-1];
+      if(last && last.key===qk){ last.idx.push(i); }
+      else { groups.push({key:qk, label:quadCode(p.mes), idx:[i]}); }
+    });
+    return groups.map(function(g){
+      var vals = g.idx.map(function(i){ return serie[i][campo]; }).filter(function(v){ return v!=null; });
+      var avg = vals.length ? vals.reduce(function(a,b){ return a+b; },0)/vals.length : null;
+      var classe = avg!=null ? classify(avg) : null;
+      return {
+        xMin: g.idx[0]-0.5, xMax: g.idx[g.idx.length-1]+0.5,
+        xMid: (g.idx[0]+g.idx[g.idx.length-1])/2,
+        avg: avg, label: g.label, st: ovStatus(classe)
+      };
+    });
+  }
+  function buildTrendChart(canvasId, serie, labels, campo, classify, metaValue, metaLabel, suffix, decimals, abertoIdx){
+    suffix = suffix || '';
+    var values = serie.map(function(p){ return p[campo]; });
+    var boxes = buildQuadBoxes(serie, campo, classify);
+    var annotations = {};
+    boxes.forEach(function(b, i){
+      annotations['box'+i] = {type:'box', xMin:b.xMin, xMax:b.xMax, backgroundColor:hexToRgba(b.st.accent,0.08), borderWidth:0};
+      if(b.avg!=null){
+        annotations['label'+i] = {
+          type:'label', xValue:b.xMid, yValue:b.avg, yAdjust:-16,
+          content:[b.label+': '+fmtDec(b.avg,decimals)+suffix],
+          font:{size:11,weight:'bold'}, color:b.st.badgeText
+        };
+      }
+    });
+    var metaSt = ovStatus('Bom');
+    annotations.metaLine = {
+      type:'line', yMin:metaValue, yMax:metaValue, borderColor:metaSt.accent,
+      borderWidth:1.5, borderDash:[4,4],
+      label:{display:true, content:metaLabel, position:'end',
+        backgroundColor:metaSt.accent, color:'#fff', font:{size:10,weight:'bold'}, padding:4}
+    };
+    var ctx = document.getElementById(canvasId).getContext('2d');
+    return new Chart(ctx, {
+      type:'line',
+      data:{ labels:labels, datasets:[{
+        data:values, borderColor:'#334155', borderWidth:2.5, spanGaps:true,
+        pointBackgroundColor:function(c){ return (c.dataIndex>=abertoIdx || c.raw==null) ? '#ffffff' : '#334155'; },
+        pointBorderColor:'#334155', pointBorderWidth:2, pointRadius:4.5, pointHoverRadius:6.5,
+        tension:0.15,
+        segment:{
+          borderDash: function(c){ return c.p0DataIndex>=(abertoIdx-1) ? [6,6] : undefined; },
+          borderColor: function(c){ return c.p0DataIndex>=(abertoIdx-1) ? '#94a3b8' : '#334155'; }
+        }
+      }]},
+      options:{
+        responsive:true, maintainAspectRatio:false,
+        plugins:{
+          legend:{display:false},
+          tooltip:{ callbacks:{ label:function(c){
+            if(c.parsed.y==null) return ' Sem dado';
+            var status = c.dataIndex>=abertoIdx ? ' (dado em aberto)' : '';
+            return ' '+fmtDec(c.parsed.y,decimals)+suffix+status;
+          }}},
+          annotation:{ annotations:annotations }
+        },
+        scales:{
+          y:{ grid:{color:'#f1f5f9'}, ticks:{font:{size:11}, callback: suffix ? function(v){ return v+suffix; } : undefined} },
+          x:{ grid:{display:false}, ticks:{font:{size:11}} }
+        }
+      }
+    });
+  }
+  // Monta os 2 cartões de gráfico (M1 e M2) no modelo do print: caixa de
+  // meta pontilhada, faixas de quadrimestre com a média, e os últimos
+  // meses (mês atual em diante) marcados como "dado em aberto" — ponto
+  // vazado e traço tracejado, já que ainda podem não estar fechados na
+  // planilha.
+  function renderTrendCharts(serie, d){
+    var labels = serie.map(function(p){ return monthShortLabel(p.mes); });
+    var hojeInicioMes = new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    var abertoIdx = serie.findIndex(function(p){ return p.mes >= hojeInicioMes; });
+    if(abertoIdx === -1) abertoIdx = serie.length;
+
+    document.getElementById('trendRow').innerHTML =
+        '<div class="chart-card"><div class="chart-header">'
+      +   '<div><div class="chart-title">M1 — Média de Atendimentos por Pessoa (mês a mês)</div>'
+      +     '<div class="chart-subtitle">Mês de referência ('+refMonthLabel()+'): <strong>'+fmtDec(d.m1,2)+'</strong></div></div>'
+      +   '<span class="legend-badge"><i style="background:'+ovStatus('Bom').accent+';"></i>Meta Bom: 2,00</span>'
+      + '</div><div class="canvas-container"><canvas id="chartM1"></canvas></div></div>'
+      + '<div class="chart-card"><div class="chart-header">'
+      +   '<div><div class="chart-title">M2 — Ações Interprofissionais Identificáveis (mês a mês)</div>'
+      +     '<div class="chart-subtitle">Mês de referência ('+refMonthLabel()+'): <strong>'+fmtDec(d.m2,1)+'%</strong></div></div>'
+      +   '<span class="legend-badge"><i style="background:'+ovStatus('Bom').accent+';"></i>Meta Bom: 2,50%</span>'
+      + '</div><div class="canvas-container"><canvas id="chartM2"></canvas></div></div>'
+      + '<p class="footnote">Cada ponto já é a janela de '+JANELA_MESES+' meses terminando naquele mês. Pontos vazados/tracejados = mês atual ou seguintes, ainda em aberto.</p>';
+
+    if(typeof Chart === 'undefined') return; // sem internet / CDN bloqueado
+
+    if(trendChartM1){ trendChartM1.destroy(); trendChartM1 = null; }
+    if(trendChartM2){ trendChartM2.destroy(); trendChartM2 = null; }
+    trendChartM1 = buildTrendChart('chartM1', serie, labels, 'm1', classificarM1, 2,    'Meta Bom (2,00)',   '',  2, abertoIdx);
+    trendChartM2 = buildTrendChart('chartM2', serie, labels, 'm2', classificarM2, 2.5,  'Meta Bom (2,50%)',  '%', 1, abertoIdx);
+  }
+
   // ---------- Render ----------
   function renderDashboard(record, serieTendencia){
     serieTendencia = serieTendencia || [];
@@ -1881,19 +1996,7 @@
     // janela móvel de JANELA_MESES meses terminando naquele mês (ver
     // calcularSerieTendencia) — não é mais o histórico de vezes que a
     // página foi atualizada.
-    var trend = '<div class="card trend-card-combo">'
-      + '<div class="trend-sub"><h4>M1 mês a mês</h4>'
-        + '<p class="cur">Mês de referência ('+refMonthLabel()+'): '+fmtDec(d.m1,2)+'</p>'
-        + sparkline(serieTendencia.map(function(p){ return {y:p.m1, label:monthShortLabel(p.mes), value:fmtDec(p.m1,2), quadKey:quadKeyOfDate(p.mes), quadLabel:quadCode(p.mes)}; }).filter(function(p){return p.y!=null;}), '#153F35', {quadAvg:true, classify:classificarM1, hideAxis:true})
-        + '</div>'
-      + '<div class="trend-sub"><h4>M2 (%) mês a mês</h4>'
-        + '<p class="cur">Mês de referência ('+refMonthLabel()+'): '+fmtDec(d.m2,2)+'%</p>'
-        + sparkline(serieTendencia.map(function(p){ return {y:p.m2, label:monthShortLabel(p.mes), value:fmtDec(p.m2,2)+'%', quadKey:quadKeyOfDate(p.mes), quadLabel:quadCode(p.mes)}; }).filter(function(p){return p.y!=null;}), '#C68A3D', {quadAvg:true, suffix:'%', classify:classificarM2})
-        + '</div>'
-      + '<p class="footnote">Cada ponto já é a janela de '+JANELA_MESES+' meses terminando naquele mês. Linha tracejada = média do quadrimestre no período exibido.</p>'
-      + '</div>';
-    document.getElementById('trendRow').innerHTML = trend;
-    setupTrendInteractivity();
+    renderTrendCharts(serieTendencia, d);
 
     // Série histórica (tabela): um mês por linha, cada um já calculado com
     // sua própria janela móvel de JANELA_MESES meses (mesmos pontos do
