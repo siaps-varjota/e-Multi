@@ -46,7 +46,7 @@
   }
   .topbar-left h1{font-size:20px;font-weight:600;margin:0 0 2px;}
   .topbar-left .tagline{margin:0;font-size:12px;color:var(--header-soft);max-width:46ch;}
-  .topbar-right{display:flex;align-items:center;gap:18px;flex-wrap:wrap;}
+  .topbar-right{display:flex;align-items:center;gap:10px;flex-wrap:wrap;}
   .topbar-meta{text-align:right;}
   .topbar-meta .eq{font-size:15px;font-weight:600;}
   .topbar-meta .periodo{font-size:12px;color:var(--header-soft);margin-top:2px;}
