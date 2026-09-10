@@ -1467,21 +1467,21 @@
       + '</div>';
   }
 
-  function gaugeCardHTML(title, formula, value, domainMax, bands, gaugeId, valueHtml, classLabel, note, legend){
+  function gaugeCardHTML(title, formula, value, domainMax, bands, gaugeId, valueHtml, classLabel, note, legend, anterior, decimals, suffix){
     // title/formula já aparecem no cabeçalho da aba (.indicator-tab-head)
     // logo acima do mm-layout — aqui, dentro do card, mostramos só o
-    // rótulo interno + badge de status (modelo das imagens de referência),
-    // sem repetir o título grande de novo.
-    var st = ovStatus(classLabel);
+    // rótulo interno (sem repetir o título grande de novo) e, no lugar do
+    // badge de status, o mesmo bloco "Evolução (quadrimestre)" da Visão
+    // geral (ovEvoHTML), comparando com o quadrimestre anterior.
     return '<div class="card gauge-card">'
       + '<div class="gauge-top-row">'
       +   '<h3 class="gauge-top-title">Resultado do indicador</h3>'
-      +   '<span class="gauge-top-badge" style="background:'+st.badgeBg+';color:'+st.badgeText+';">'+st.icon+' '+(classLabel||'—')+'</span>'
       + '</div>'
       + buildGauge(value, domainMax, bands, gaugeId)
       + '<div class="gauge-value">'+valueHtml+'</div>'
       + '<span class="pill" style="background:'+pillHex(classLabel)+'">'+(classLabel||'—')+'</span>'
       + (note ? '<p class="gauge-note">'+note+'</p>' : '')
+      + ovEvoHTML(value, anterior, domainMax, decimals!=null?decimals:2, suffix||'')
       + (legend ? gaugeLegendHTML(legend) : '')
       + '</div>';
   }
@@ -1948,7 +1948,8 @@
       gaugeCardHTML('M1 — Média de atendimentos por pessoa',
         'Atendimentos individuais + coletivos ÷ pessoas atendidas',
         d.m1, 4, CLASS_BANDS_M1, 'needle-m1tab-m1', fmtDec(d.m1,2), d.classificacaoM1,
-        fmtInt(numM1Gauge)+' atendimentos ÷ '+fmtInt(denM1Gauge)+' pessoas', LEGEND_M1);
+        fmtInt(numM1Gauge)+' atendimentos ÷ '+fmtInt(denM1Gauge)+' pessoas', LEGEND_M1,
+        quadAnterior.m1, 2, '');
     document.getElementById('compRowM1').innerHTML =
         '<div class="card comp-card"><h4>Numerador do M1</h4>'+numM1Bar+'</div>'
       + '<div class="card comp-card"><h4>Denominador do M1</h4>'+denM1Bar+'</div>'
@@ -1960,7 +1961,8 @@
       gaugeCardHTML('M2 — Ações compartilhadas',
         'Ações compartilhadas ÷ ações realizadas × 100',
         d.m2, 8, CLASS_BANDS_M2, 'needle-m2tab-m2', fmtDec(d.m2,2)+'<span class="unit">%</span>', d.classificacaoM2,
-        fmtInt(numM2Gauge)+' compartilhadas ÷ '+fmtInt(denM2Gauge)+' ações', LEGEND_M2);
+        fmtInt(numM2Gauge)+' compartilhadas ÷ '+fmtInt(denM2Gauge)+' ações', LEGEND_M2,
+        quadAnterior.m2, 1, '%');
     document.getElementById('compRowM2').innerHTML =
         '<div class="card comp-card"><h4>Numerador do M2</h4>'+numM2Bar+'</div>'
       + '<div class="card comp-card"><h4>Denominador do M2</h4>'+denM2Bar+'</div>'
