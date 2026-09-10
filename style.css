@@ -204,12 +204,12 @@
 
   /* ---------- Cards da Visão geral (ícone + anel + evolução) ---------- */
   .ov-card{flex:1;min-width:300px;display:flex;flex-direction:column;}
-  .ov-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px;min-height:45px;}
+  .ov-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:8px;min-height:40px;}
   .ov-head-left{display:flex;align-items:center;gap:10px;}
   .ov-icon{width:34px;height:34px;border-radius:9px;flex:0 0 auto;display:flex;align-items:center;justify-content:center;}
   .ov-icon svg{width:18px;height:18px;}
   .ov-title{
-    margin:0;font-family:'Inter',sans-serif;font-size:12.5px;font-weight:700;color:var(--ink);line-height:1.3;
+    margin:0;font-family:'Inter',sans-serif;font-size:14.5px;font-weight:700;color:var(--ink);line-height:1.3;
     height:37.7px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;
   }
   .ov-badge{
@@ -222,9 +222,9 @@
   .ov-value-cap{font-size:12px;color:var(--ink-soft);line-height:1.3;}
   /* Gauges da Visão geral 30% maiores (84px -> 109px), acompanhando o
      SVG do anel (ver ovRingSVG em app.js). */
-  .ov-ring-wrap{position:relative;width:109px;height:109px;flex:0 0 auto;}
+  .ov-ring-wrap{display:flex;flex-direction:column;align-items:center;flex:0 0 auto;}
   .ov-ring-center{
-    position:absolute;inset:0;display:flex;flex-direction:column;
+    margin-top:-16px;display:flex;flex-direction:column;
     align-items:center;justify-content:center;
   }
   .ov-ring-value{font-size:21px;font-weight:700;color:var(--ink);}
