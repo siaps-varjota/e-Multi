@@ -33,8 +33,8 @@
   .topbar{
     background:linear-gradient(120deg,var(--header-bg),var(--header-bg-2));
     color:var(--header-ink);
-    padding:10px 30px;
-    display:flex;flex-direction:column;gap:6px;
+    padding:10px 40px;
+    display:flex;flex-direction:column;gap:10px;
     position:sticky;top:0;z-index:5;
   }
   .topbar-top{
@@ -281,9 +281,11 @@
 
   .trend-row{display:flex;gap:20px;flex-wrap:wrap;margin-bottom:24px;}
   .trend-row .section-title{flex:1 1 100%;margin:4px 0 -6px;}
-  .trend-card{flex:1;min-width:320px;}
-  .trend-card h4{font-size:14.5px;font-weight:500;margin:0 0 4px;}
-  .trend-card .cur{font-size:12px;color:var(--ink-soft);margin:0 0 10px;}
+  .trend-card-combo{flex:1 1 100%;width:100%;}
+  .trend-sub + .trend-sub{margin-top:18px;}
+  .trend-sub h4{font-size:14.5px;font-weight:500;margin:0 0 4px;}
+  .trend-sub .cur{font-size:12px;color:var(--ink-soft);margin:0 0 10px;}
+  .trend-card-combo > .footnote{margin-top:14px;}
   .spark-svg{width:100%;height:auto;}
   .tp-point{cursor:pointer;}
   .tp-point .tp-val,.tp-point .tp-dot,.tp-point .tp-axis{transition:opacity .12s ease;}
