@@ -512,39 +512,6 @@
   }
   .list-placeholder code{background:var(--paper);border-radius:4px;padding:1px 5px;font-size:11.5px;}
 
-  /* ---------- Redesign visual exclusivo das abas M1 e M2 ---------- */
-  .indicator-redesign-card{
-    flex:1;display:flex;flex-direction:column;justify-content:center;min-height:390px;
-    padding:28px 30px;border:1px solid var(--line);border-radius:14px;background:var(--surface);
-    box-shadow:0 3px 12px rgba(21,63,53,.06);
-  }
-  .indicator-redesign-top{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;}
-  .indicator-kicker{display:inline-block;padding:5px 11px;border-radius:999px;background:#dff4eb;color:#153f35;font-size:11px;font-weight:800;letter-spacing:.06em;}
-  .indicator-redesign-card h3{margin:12px 0 4px;color:var(--ink);font-size:21px;font-weight:700;line-height:1.2;}
-  .indicator-redesign-card p{margin:0;color:var(--ink-soft);font-size:12.5px;line-height:1.45;}
-  .indicator-status{flex:none;padding:7px 12px;border-radius:999px;font-size:12px;font-weight:800;text-transform:capitalize;}
-  .indicator-redesign-value{margin:24px 0 4px;color:#153f35;font-size:64px;font-weight:800;letter-spacing:-.05em;line-height:1;}
-  .indicator-redesign-meta{display:flex;align-items:center;gap:8px;color:var(--ink-soft);font-size:13px;}
-  .indicator-redesign-meta b{color:var(--ink);font-size:16px;}
-  .indicator-progress-wrap{margin:26px 0 20px;}
-  .indicator-progress-track{position:relative;height:17px;overflow:visible;border-radius:999px;background:#e8eee9;}
-  .indicator-progress-fill{display:block;height:100%;border-radius:999px;min-width:3px;}
-  .indicator-progress-marker{position:absolute;top:50%;width:4px;height:30px;border-radius:4px;transform:translate(-50%,-50%);box-shadow:0 0 0 4px rgba(198,138,61,.16);}
-  .indicator-progress-labels{display:flex;justify-content:space-between;gap:8px;margin-top:11px;color:var(--ink-soft);font-size:11px;}
-  .indicator-progress-labels .current{color:var(--ink);font-weight:700;}
-  .indicator-action{display:flex;align-items:center;gap:10px;padding:12px 14px;border:1px solid;border-radius:9px;color:var(--ink);font-size:13px;line-height:1.3;}
-  .indicator-action-icon{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;flex:none;border-radius:50%;background:#c68a3d;color:#fff;font-size:13px;font-weight:800;}
-  .indicator-formula{margin-top:18px;padding-top:14px;border-top:1px solid var(--line);color:var(--ink-soft);font-size:12px;}
-  #tabM1 .mm-layout,#tabM2 .mm-layout{gap:22px;}
-  #tabM1 .mm-comp-col,#tabM2 .mm-comp-col{gap:14px;}
-  #tabM1 .mm-comp-col .comp-card,#tabM2 .mm-comp-col .comp-card{border-radius:12px;box-shadow:0 2px 9px rgba(21,63,53,.045);}
-  #tabM1 .mm-comp-col .meta-mini-card,#tabM2 .mm-comp-col .meta-mini-card{border-radius:12px;}
-  @media (max-width:700px){
-    .indicator-redesign-card{min-height:0;padding:22px 20px;}
-    .indicator-redesign-value{font-size:52px;}
-    .indicator-redesign-card h3{font-size:18px;}
-  }
-
   @media (max-width:880px){
     .topbar{padding:20px 20px;}
     .topbar-right{width:100%;justify-content:space-between;}
