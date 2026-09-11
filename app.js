@@ -1619,7 +1619,7 @@
   // faixas logo abaixo do arco, e a Evolução do quadrimestre embutida no
   // final, dentro do mesmo cartão.
   function ipGaugeCardHTML(value, domainMax, bands, gaugeId, valueHtml, classLabel, capText, anterior, decimals, suffix, legend){
-    return '<div class="card ip-gauge-card">'
+    return '<div class="card ip-gauge-card" style="border-top:4px solid '+pillHex(classLabel)+';">'
       + '<div class="ip-gauge-row">'
       +   '<div class="ip-gauge-visual">'+buildGauge(value, domainMax, bands, gaugeId)
       +     (legend ? gaugeLegendHTML(legend) : '')
