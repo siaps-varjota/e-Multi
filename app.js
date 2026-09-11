@@ -1358,10 +1358,10 @@
   // Cor por STATUS (não mais por indicador): o ícone, o anel e o badge de
   // cada cartão seguem a classificação atual daquele indicador.
   var OV_STATUS = {
-    'Ótimo':      {accent:arcHexOv('Ótimo'), badgeBg:'#eff6ff', badgeText:'#1e40af', icon:'★', barColor:'#98B4DE'},
-    'Bom':        {accent:arcHexOv('Bom'), badgeBg:'#dcfce7', badgeText:'#166534', icon:'↗', barColor:'#9FCAAE'},
-    'Suficiente': {accent:arcHexOv('Suficiente'), badgeBg:'#ffedd5', badgeText:'#9a3412', icon:'→', barColor:'#E9C590'},
-    'Regular':    {accent:arcHexOv('Regular'), badgeBg:'#fee2e2', badgeText:'#991b1b', icon:'↘', barColor:'#E29F9F'}
+    'Ótimo':      {accent:arcHexOv('Ótimo'), badgeBg:'#eff6ff', badgeText:'#1e40af', icon:'★', barColor:arcHexOv('Ótimo')},
+    'Bom':        {accent:arcHexOv('Bom'), badgeBg:'#dcfce7', badgeText:'#166534', icon:'↗', barColor:arcHexOv('Bom')},
+    'Suficiente': {accent:arcHexOv('Suficiente'), badgeBg:'#ffedd5', badgeText:'#9a3412', icon:'→', barColor:arcHexOv('Suficiente')},
+    'Regular':    {accent:arcHexOv('Regular'), badgeBg:'#fee2e2', badgeText:'#991b1b', icon:'↘', barColor:arcHexOv('Regular')}
   };
   var OV_STATUS_FALLBACK = {accent:'#6b7280', badgeBg:'#f3f4f6', badgeText:'#374151', icon:'•', barColor:'#d1d5db'};
   function ovStatus(classe){ return OV_STATUS[classe] || OV_STATUS_FALLBACK; }
@@ -1396,7 +1396,7 @@
       var a1 = 180 - (b.from/domainMax)*180;
       var a2 = 180 - (b.to/domainMax)*180;
       var ativa = (b.classe === classeAtual);
-      return '<path d="'+arcPath(cx,cy,r,a1,a2)+'" stroke="'+b.color+'" stroke-width="'+thick+'" fill="none" stroke-opacity="'+(ativa?1:0.35)+'"/>';
+      return '<path d="'+arcPath(cx,cy,r,a1,a2)+'" stroke="'+b.color+'" stroke-width="'+thick+'" fill="none" stroke-opacity="'+(ativa?1:0.22)+'"/>';
     }).join('');
     var frac = (value===null || value===undefined || isNaN(value)) ? 0 : Math.max(0, Math.min(1, value/domainMax));
     var targetAngle = 180 - frac*180;
