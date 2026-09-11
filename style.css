@@ -262,10 +262,10 @@
      ocupa o lugar do badge de status que existia ali antes, então tem
      mais espaço sobrando e fica melhor num tamanho maior que o das
      mini-versões usadas em outros lugares). */
-  .gauge-card .ov-evo{width:100%;padding:26px 20px;margin-top:6px;}
+  .gauge-card .ov-evo{width:100%;padding:18px 20px;margin-top:22px;}
   .gauge-card .ov-evo-title{font-size:13px;}
   .gauge-card .ov-evo-delta{font-size:16px;}
-  .gauge-card .ov-evo-track{height:10px;margin:20px 0 12px;}
+  .gauge-card .ov-evo-track{height:10px;margin:14px 0 12px;}
   .gauge-card .ov-evo-labels{font-size:13.5px;}
   .gauge-card .ov-evo-labels b{font-size:16px;}
   .ov-legend{margin-top:auto;padding-top:12px;}
@@ -349,7 +349,7 @@
   /* Gauge maior só aqui (abas M1/M2) — não mexe no gauge-row da Visão geral. */
   .mm-gauge-col .gauge-svg{max-width:320px;margin-bottom:-18px;}
   .mm-gauge-col .gauge-card h3{font-size:18px;}
-  .mm-gauge-col .gauge-value{margin-top:-12px;}
+  .mm-gauge-col .gauge-value{margin-top:-8px;}
   .mm-gauge-col .gauge-card .formula{font-size:13.5px;}
   .mm-gauge-col .gauge-value{font-size:48px;}
   .mm-gauge-col .gauge-value .unit{font-size:25px;}
