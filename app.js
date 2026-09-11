@@ -1615,12 +1615,15 @@
       + '</div>';
   }
 
-  // Cartão do gauge (coluna 1): arco + resultado no topo, e a Evolução do
-  // quadrimestre embutida logo abaixo, dentro do mesmo cartão.
-  function ipGaugeCardHTML(value, domainMax, bands, gaugeId, valueHtml, classLabel, capText, anterior, decimals, suffix){
+  // Cartão do gauge (coluna 1): arco + resultado no topo, legenda de
+  // faixas logo abaixo do arco, e a Evolução do quadrimestre embutida no
+  // final, dentro do mesmo cartão.
+  function ipGaugeCardHTML(value, domainMax, bands, gaugeId, valueHtml, classLabel, capText, anterior, decimals, suffix, legend){
     return '<div class="card ip-gauge-card">'
       + '<div class="ip-gauge-row">'
-      +   '<div class="ip-gauge-visual">'+buildGauge(value, domainMax, bands, gaugeId)+'</div>'
+      +   '<div class="ip-gauge-visual">'+buildGauge(value, domainMax, bands, gaugeId)
+      +     (legend ? gaugeLegendHTML(legend) : '')
+      +   '</div>'
       +   '<div class="ip-result-block">'
       +     '<p class="ip-result-label">Resultado do indicador</p>'
       +     '<div class="ip-result-value">'+valueHtml+'</div>'
@@ -2148,7 +2151,7 @@
     document.getElementById('gaugeRowM1').innerHTML =
       ipGaugeCardHTML(d.m1, 4, CLASS_BANDS_M1, 'needle-m1tab-m1', fmtDec(d.m1,2), d.classificacaoM1,
         fmtInt(numM1Gauge)+' atendimentos + '+fmtInt(denM1Gauge)+' pessoas',
-        quadAnterior.m1, 2, '');
+        quadAnterior.m1, 2, '', LEGEND_M1);
     document.getElementById('compRowM1').innerHTML =
         '<div class="card comp-card">'+compCardHeaderHTML('Composição do numerador', numM1Gauge)+numM1Bar+'</div>'
       + '<div class="card comp-card">'+compCardHeaderHTML('Denominador do M1', denM1Gauge)+denM1Bar+'</div>';
@@ -2162,7 +2165,7 @@
     document.getElementById('gaugeRowM2').innerHTML =
       ipGaugeCardHTML(d.m2, 8, CLASS_BANDS_M2, 'needle-m2tab-m2', fmtDec(d.m2,2)+'<span class="unit">%</span>', d.classificacaoM2,
         fmtInt(numM2Gauge)+' compartilhadas + '+fmtInt(denM2Gauge)+' ações',
-        quadAnterior.m2, 2, '%');
+        quadAnterior.m2, 2, '%', LEGEND_M2);
     document.getElementById('compRowM2').innerHTML =
         '<div class="card comp-card">'+compCardHeaderHTML('Composição do numerador', numM2Gauge)+numM2Bar+'</div>'
       + '<div class="card comp-card">'+compCardHeaderHTML('Denominador do M2', denM2Gauge)+denM2Bar+'</div>';
