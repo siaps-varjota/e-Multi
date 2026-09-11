@@ -12,6 +12,17 @@
   // terminando naquele mês. Mude só este número se quiser 3, 4 ou 6 meses
   // de janela.
   var JANELA_MESES = 4;
+  // ---- Override com dados OFICIAIS (aba "Q2-26" da mesma planilha) ----
+  // Pra mai/jun/jul de 2026, a Secretaria já tem o resultado oficial do
+  // SIAPS/Ministério da Saúde (M1 e M2, por equipe e por mês), publicado
+  // numa aba separada da mesma planilha. Sempre que esses dados oficiais
+  // existirem pra um mês/equipe/indicador, eles SUBSTITUEM o valor
+  // calculado pelo painel a partir dos dados brutos (ver
+  // aplicarOverrideOficial, mais abaixo) — o cálculo próprio continua
+  // valendo só pros meses/indicadores sem dado oficial disponível.
+  var OFFICIAL_SHEET_NAME = "Q2-26";
+  // chave "centro|2026-05|M1" -> {numerador, denominador}
+  var officialOverrides = {};
   // Quantos pontos (meses) mostrar nos gráficos de tendência — cada ponto
   // é o M1/M2 daquele mês, já calculado com sua própria janela de
   // JANELA_MESES meses terminando naquele mês.
@@ -147,7 +158,7 @@
     for(var i=n-1; i>=0; i--){
       var mes = addMonths(refMonth, -i);
       var janela = calcularJanelaPeriodo(mes);
-      var res = calcularIndicadoresDoPeriodo(wb, janela);
+      var res = calcularJanelaComOverride(wb, mes);
       pontos.push({
         mes:mes, m1:res.data.m1, m2:res.data.m2,
         numeradorM1: res.data.numeradorM1, denominadorM1: res.data.denominadorM1,
@@ -587,6 +598,128 @@
     }
     return -1;
   }
+  // ---------- Dados oficiais (aba Q2-26) ----------
+  // A aba Q2-26 tem duas tabelas empilhadas (uma pro M1, outra pro M2),
+  // cada linha de dado com: NOME DA EQUIPE | SIGLA | numerador | denominador
+  // | pontuação (não usada — recalculamos pra garantir a mesma fórmula do
+  // painel) | MÊS ("mai./26") | INDICADOR ("M1"/"M2"). Não há coluna
+  // separada por aba/equipe — filtramos e agrupamos aqui mesmo.
+  var MESES_PT_ABREV = {jan:0,fev:1,mar:2,abr:3,mai:4,jun:5,jul:6,ago:7,set:8,out:9,nov:10,dez:11};
+  function parseMesAbrevPt(raw){
+    var s = String(raw||"").trim().toLowerCase().replace(/\./g,'');
+    var m = s.match(/^([a-z]{3})\/(\d{2,4})$/);
+    if(m && MESES_PT_ABREV[m[1]]!==undefined){
+      var anoStr = m[2];
+      var ano = anoStr.length===2 ? (2000+ +anoStr) : +anoStr;
+      return {ano:ano, mesIdx:MESES_PT_ABREV[m[1]]};
+    }
+    // Reforço: se a célula "MÊS" for uma data de verdade (não texto), o
+    // gviz/CSV pode devolver algo como "31/5/2026" ou "2026-05-31" em vez
+    // de "mai./26" — tenta os dois formatos antes de desistir.
+    var d = parseBRDate(raw);
+    if(d) return {ano: d.getFullYear(), mesIdx: d.getMonth()};
+    return null;
+  }
+  // Acha a equipe (EQUIPES) cujo matchKeyword aparece no "NOME DA EQUIPE"
+  // da aba oficial — mesma lógica/keywords usadas pra filtrar as abas
+  // brutas por equipe (ver EQUIPES e filtrarLinhasPorEquipe).
+  function equipeKeyFromNomeOficial(nome){
+    var norm = normalizeText(nome);
+    var achou = EQUIPES.filter(function(eq){ return norm.indexOf(normalizeText(eq.matchKeyword)) !== -1; });
+    return achou.length ? achou[0].key : null;
+  }
+  function officialOverrideKey(equipeKey, ano, mesIdx, indicador){
+    return equipeKey + '|' + ano + '-' + String(mesIdx+1).padStart(2,'0') + '|' + indicador;
+  }
+  // Faz o parse do CSV bruto da aba Q2-26 pro mapa de overrides. Linhas
+  // que não tiverem "M1"/"M2" na coluna G (cabeçalhos, linhas em branco
+  // entre as duas tabelas) são ignoradas — não depende de saber onde cada
+  // tabela começa/termina.
+  function parseOfficialSheetCsv(csvText){
+    var rows = parseCsv(csvText);
+    var map = {};
+    rows.forEach(function(r){
+      var indicador = String(r[6]||"").trim().toUpperCase();
+      if(indicador !== 'M1' && indicador !== 'M2') return;
+      var equipeKey = equipeKeyFromNomeOficial(r[0]);
+      if(!equipeKey) return;
+      var mes = parseMesAbrevPt(r[5]);
+      if(!mes) return;
+      map[officialOverrideKey(equipeKey, mes.ano, mes.mesIdx, indicador)] = {
+        numerador: toInt(r[2]),
+        denominador: toInt(r[3])
+      };
+    });
+    return map;
+  }
+  // Busca a aba oficial à parte (não é uma aba "bruta" filtrada por
+  // equipe, ver requiredSheetNames). Nunca rejeita a promise — se a aba
+  // não existir ou a busca falhar, simplesmente mantém os overrides já
+  // carregados antes (ou vazio, na primeira vez), sem travar o resto do
+  // carregamento do painel.
+  function fetchOfficialOverridesSafe(){
+    return fetch(sheetCsvUrl(OFFICIAL_SHEET_NAME), {cache:'no-store'})
+      .then(function(res){ if(!res.ok) throw new Error('HTTP ' + res.status); return res.text(); })
+      .then(function(csvText){ officialOverrides = parseOfficialSheetCsv(csvText); })
+      .catch(function(){ /* mantém officialOverrides como estava */ });
+  }
+  // Aplica (in-place) o override oficial em `data` (o objeto retornado por
+  // calcularIndicadoresDoPeriodo) pro mês/ano informados, considerando as
+  // equipes atualmente selecionadas (currentEquipes). Só substitui M1 (ou
+  // M2) quando TODAS as equipes selecionadas têm dado oficial pra aquele
+  // indicador/mês — com 2 equipes marcadas, soma numerador e denominador
+  // de ambas e recalcula a pontuação (mesma fórmula do painel: M1 =
+  // numerador/denominador; M2 = numerador/denominador×100). Sem dado
+  // oficial completo, o valor calculado pelo painel é mantido como está.
+  function aplicarOverrideOficial(data, ano, mesIdx){
+    ['M1','M2'].forEach(function(indicador){
+      var entradas = currentEquipes.map(function(eq){
+        return officialOverrides[officialOverrideKey(eq.key, ano, mesIdx, indicador)];
+      });
+      if(!entradas.length || entradas.some(function(e){ return !e; })) return;
+      var numerador = entradas.reduce(function(a,e){ return a+e.numerador; }, 0);
+      var denominador = entradas.reduce(function(a,e){ return a+e.denominador; }, 0);
+      if(indicador === 'M1'){
+        var m1 = denominador ? (numerador/denominador) : null;
+        data.numeradorM1 = numerador;
+        data.denominadorM1 = denominador;
+        data.m1 = m1;
+        data.classificacaoM1 = classificarM1(m1);
+        data.m1Oficial = true;
+      } else {
+        var m2 = denominador ? (numerador/denominador*100) : null;
+        data.numeradorM2 = numerador;
+        data.denominadorM2 = denominador;
+        data.m2 = m2;
+        data.classificacaoM2 = classificarM2(m2);
+        data.m2Oficial = true;
+      }
+    });
+    // Recalcula a síntese (pontos/nota/desempenho) com as classificações
+    // já atualizadas acima — idêntico ao cálculo original quando não há
+    // override (não altera nada nesse caso, só reexecuta a mesma fórmula).
+    var pontosM1 = PONTOS_POR_CLASSE[data.classificacaoM1];
+    var pontosM2 = PONTOS_POR_CLASSE[data.classificacaoM2];
+    var pontosM1Pesados = pontosM1!==undefined ? pontosM1*6 : null;
+    var pontosM2Pesados = pontosM2!==undefined ? pontosM2*4 : null;
+    data.pontosM1 = pontosM1Pesados;
+    data.pontosM2 = pontosM2Pesados;
+    data.notaFinal = (pontosM1Pesados!=null && pontosM2Pesados!=null) ? (pontosM1Pesados+pontosM2Pesados) : null;
+    data.desempenho = classificarDesempenho(data.notaFinal);
+    return data;
+  }
+  // Wrapper usado em todo lugar que hoje calcula o resultado "com janela
+  // móvel" de um mês de referência (calcularIndicadoresDoPeriodo +
+  // calcularJanelaPeriodo) — aplica o override oficial (quando existir)
+  // logo em seguida, então o restante do painel (gauge, cards, médias,
+  // gráfico de Tendência) nem precisa saber se o valor veio calculado ou
+  // da aba oficial.
+  function calcularJanelaComOverride(wb, refMonth){
+    var res = calcularIndicadoresDoPeriodo(wb, calcularJanelaPeriodo(refMonth));
+    aplicarOverrideOficial(res.data, refMonth.getFullYear(), refMonth.getMonth());
+    return res;
+  }
+
   function filtrarLinhasPorEquipe(matrix, equipes){
     if(!matrix || !matrix.length) return matrix || [];
     var header = matrix[0];
@@ -2358,7 +2491,7 @@
       // fev, mar, abr e maio, incluindo os dois extremos), a mesma janela
       // usada pela série de tendência (ver calcularJanelaPeriodo).
       var janelaMes = calcularJanelaPeriodo(refMonthDates[0]);
-      extracted = calcularIndicadoresDoPeriodo(latestWb, janelaMes);
+      extracted = calcularJanelaComOverride(latestWb, refMonthDates[0]);
       periodo = {inicio: fmtBRDate(janelaMes.inicio), fim: fmtBRDate(janelaMes.fim)};
     } else if(refMonthDates.length > 1){
       // Vários meses escolhidos: o M1/M2 de CADA mês marcado já é o valor
@@ -2372,7 +2505,7 @@
         return calcularIndicadoresDoPeriodo(latestWb, periodoMesUnico(m));
       });
       var resultadosJanelaSel = refMonthDates.map(function(m){
-        return calcularIndicadoresDoPeriodo(latestWb, calcularJanelaPeriodo(m));
+        return calcularJanelaComOverride(latestWb, m);
       });
       extracted = mediaDeMeses(resultadosMensaisSel, resultadosJanelaSel);
       periodo = {
@@ -2393,7 +2526,7 @@
         return calcularIndicadoresDoPeriodo(latestWb, periodoMesUnico(m));
       });
       var resultadosJanela = meses.map(function(m){
-        return calcularIndicadoresDoPeriodo(latestWb, calcularJanelaPeriodo(m));
+        return calcularJanelaComOverride(latestWb, m);
       });
       extracted = mediaDeMeses(resultadosMensais, resultadosJanela);
       periodo = {
@@ -2471,8 +2604,9 @@
     fetchStatusEl.textContent = 'Buscando dados…';
     fetchStatusEl.className = 'fetch-status';
 
-    fetchAllSheets()
-      .then(function(results){
+    Promise.all([fetchAllSheets(), fetchOfficialOverridesSafe()])
+      .then(function(arr){
+        var results = arr[0];
         var faltando = results.filter(function(r){ return !r.ok; });
         if(faltando.length){
           throw new Error('Não foi possível ler a(s) aba(s) "' + faltando.map(function(r){return r.name;}).join('", "')
