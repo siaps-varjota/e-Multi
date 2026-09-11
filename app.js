@@ -1358,10 +1358,10 @@
   // Cor por STATUS (não mais por indicador): o ícone, o anel e o badge de
   // cada cartão seguem a classificação atual daquele indicador.
   var OV_STATUS = {
-    'Ótimo':      {accent:'#2563eb', badgeBg:'#eff6ff', badgeText:'#1e40af', icon:'★', barColor:'#60a5fa'},
-    'Bom':        {accent:'#16a34a', badgeBg:'#dcfce7', badgeText:'#166534', icon:'↗', barColor:'#4ade80'},
-    'Suficiente': {accent:'#ea580c', badgeBg:'#ffedd5', badgeText:'#9a3412', icon:'→', barColor:'#fb923c'},
-    'Regular':    {accent:'#dc2626', badgeBg:'#fee2e2', badgeText:'#991b1b', icon:'↘', barColor:'#f87171'}
+    'Ótimo':      {accent:arcHexOv('Ótimo'), badgeBg:'#eff6ff', badgeText:'#1e40af', icon:'★', barColor:'#60a5fa'},
+    'Bom':        {accent:arcHexOv('Bom'), badgeBg:'#dcfce7', badgeText:'#166534', icon:'↗', barColor:'#4ade80'},
+    'Suficiente': {accent:arcHexOv('Suficiente'), badgeBg:'#ffedd5', badgeText:'#9a3412', icon:'→', barColor:'#fb923c'},
+    'Regular':    {accent:arcHexOv('Regular'), badgeBg:'#fee2e2', badgeText:'#991b1b', icon:'↘', barColor:'#f87171'}
   };
   var OV_STATUS_FALLBACK = {accent:'#6b7280', badgeBg:'#f3f4f6', badgeText:'#374151', icon:'•', barColor:'#d1d5db'};
   function ovStatus(classe){ return OV_STATUS[classe] || OV_STATUS_FALLBACK; }
