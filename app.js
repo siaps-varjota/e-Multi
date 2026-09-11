@@ -340,6 +340,10 @@
 
   var CLASS_PILL_HEX = {"Ótimo":"#2F6F5E","Bom":"#6B8F71","Suficiente":"#C68A3D","Regular":"#B5474B"};
   var CLASS_ARC_HEX = {"Regular":"#DC4C4C","Suficiente":"#F2A93B","Bom":"#4CAF6D","Ótimo":"#3B7DDD"};
+  // Versão só um pouco mais intensa/saturada, usada apenas nos anéis da
+  // Visão geral (ovRingSVG) — não afeta os gauges grandes das abas M1/M2,
+  // que continuam usando CLASS_ARC_HEX normalmente.
+  var CLASS_ARC_HEX_OV = {"Regular":"#D42E2E","Suficiente":"#E68C0A","Bom":"#2F9852","Ótimo":"#1E63C9"};
 
   // ---------- Listas complementares ----------
   function m1ListNames(){ return ["Atendimentos", "Participantes Ativ. Coletiva", "Pessoas atendidas"].map(suffixedName); }
@@ -401,6 +405,7 @@
   }
   function pillHex(c){ return CLASS_PILL_HEX[c] || "#9AA69E"; }
   function arcHex(c){ return CLASS_ARC_HEX[c] || "#9AA69E"; }
+  function arcHexOv(c){ return CLASS_ARC_HEX_OV[c] || "#9AA69E"; }
 
   // ---------- Multi-select arredondado (Equipe / Quadrimestre / Mês) ----------
   // Componente genérico: em modo multi:true permite marcar vários valores
@@ -1303,6 +1308,26 @@
     {from:5,to:7.5,classe:"Bom",color:arcHex("Bom")},
     {from:7.5,to:10,classe:"Ótimo",color:arcHex("Ótimo")}
   ];
+  // Mesmas faixas, só que com a cor mais intensa (arcHexOv) — usadas
+  // apenas nos anéis da Visão geral (overviewCardHTML/ovRingSVG).
+  var CLASS_BANDS_M1_OV = [
+    {from:0,to:1,classe:"Regular",color:arcHexOv("Regular")},
+    {from:1,to:2,classe:"Suficiente",color:arcHexOv("Suficiente")},
+    {from:2,to:3,classe:"Bom",color:arcHexOv("Bom")},
+    {from:3,to:4,classe:"Ótimo",color:arcHexOv("Ótimo")}
+  ];
+  var CLASS_BANDS_M2_OV = [
+    {from:0,to:1,classe:"Regular",color:arcHexOv("Regular")},
+    {from:1,to:2.5,classe:"Suficiente",color:arcHexOv("Suficiente")},
+    {from:2.5,to:5,classe:"Bom",color:arcHexOv("Bom")},
+    {from:5,to:8,classe:"Ótimo",color:arcHexOv("Ótimo")}
+  ];
+  var CLASS_BANDS_NOTA_OV = [
+    {from:0,to:2.5,classe:"Regular",color:arcHexOv("Regular")},
+    {from:2.5,to:5,classe:"Suficiente",color:arcHexOv("Suficiente")},
+    {from:5,to:7.5,classe:"Bom",color:arcHexOv("Bom")},
+    {from:7.5,to:10,classe:"Ótimo",color:arcHexOv("Ótimo")}
+  ];
 
 
   function gaugeLegendHTML(items){
@@ -1944,21 +1969,21 @@
     document.getElementById('gaugeRow').innerHTML =
         overviewCardHTML({
           iconKind:'pulse', title:'M1 — Média de Atendimentos por Pessoa', classe:d.classificacaoM1,
-          value:d.m1, domainMax:4, decimals:2, suffix:'', bands:CLASS_BANDS_M1, gaugeId:'ovGaugeM1',
+          value:d.m1, domainMax:4, decimals:2, suffix:'', bands:CLASS_BANDS_M1_OV, gaugeId:'ovGaugeM1',
           valueTxt:fmtDec(d.m1,2), valueCap:fmtInt(numM1Gauge)+' atendimentos ÷ '+fmtInt(denM1Gauge)+' pessoas',
           ringTxt:fmtDec(d.m1,2), scaleCap:'de 4',
           anterior:quadAnterior.m1, legend:OV_LEGEND_M1
         })
       + overviewCardHTML({
           iconKind:'users', title:'M2 — Ações Interprofissionais', classe:d.classificacaoM2,
-          value:d.m2, domainMax:8, decimals:1, suffix:'%', bands:CLASS_BANDS_M2, gaugeId:'ovGaugeM2',
+          value:d.m2, domainMax:8, decimals:1, suffix:'%', bands:CLASS_BANDS_M2_OV, gaugeId:'ovGaugeM2',
           valueTxt:fmtDec(d.m2,1)+'%', valueCap:fmtInt(numM2Gauge)+' compartilhadas ÷ '+fmtInt(denM2Gauge)+' ações',
           ringTxt:fmtDec(d.m2,1), scaleCap:'de 8%',
           anterior:quadAnterior.m2, legend:OV_LEGEND_M2
         })
       + overviewCardHTML({
           iconKind:'speed', title:'Desempenho Quadrimestral', classe:d.desempenho,
-          value:d.notaFinal, domainMax:10, decimals:1, suffix:'', bands:CLASS_BANDS_NOTA, gaugeId:'ovGaugeNota',
+          value:d.notaFinal, domainMax:10, decimals:1, suffix:'', bands:CLASS_BANDS_NOTA_OV, gaugeId:'ovGaugeNota',
           valueTxt:fmtDec(d.notaFinal,1), valueCap:'M1: '+fmtDec(d.pontosM1,1)+' ('+(d.classificacaoM1||'—')+') · M2: '+fmtDec(d.pontosM2,1)+' ('+(d.classificacaoM2||'—')+') | Pesos: 6 + 4',
           ringTxt:fmtDec(d.notaFinal,1), scaleCap:'de 10',
           anterior:quadAnterior.notaFinal, legend:OV_LEGEND_NOTA
