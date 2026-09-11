@@ -1515,8 +1515,7 @@
       +   '<div class="ov-value-block"><span class="ov-value" style="color:'+st.accent+';">'+opts.valueTxt+'</span>'
       +     '<span class="ov-value-cap">'+opts.valueCap+'</span></div>'
       +   '<div class="ov-ring-wrap">'+ovRingSVG(opts.value, opts.domainMax, opts.bands, opts.classe, st, opts.gaugeId)
-      +     '<div class="ov-ring-center"><span class="ov-ring-value">'+opts.ringTxt+'</span>'
-      +       '<span class="ov-ring-scale">'+opts.scaleCap+'</span></div></div>'
+      +     '<div class="ov-ring-center"><span class="ov-ring-value">'+opts.ringTxt+'</span></div></div>'
       + '</div>'
       + ovEvoHTML(opts.value, opts.anterior, opts.domainMax, opts.decimals, opts.suffix||'')
       + ovLegendHTML(opts.legend)
@@ -1978,14 +1977,14 @@
           iconKind:'users', title:'M2 — Ações Interprofissionais', classe:d.classificacaoM2,
           value:d.m2, domainMax:8, decimals:1, suffix:'%', bands:CLASS_BANDS_M2_OV, gaugeId:'ovGaugeM2',
           valueTxt:fmtDec(d.m2,1)+'%', valueCap:fmtInt(numM2Gauge)+' compartilhadas ÷ '+fmtInt(denM2Gauge)+' ações',
-          ringTxt:fmtDec(d.m2,1), 
+          ringTxt:fmtDec(d.m2,1),
           anterior:quadAnterior.m2, legend:OV_LEGEND_M2
         })
       + overviewCardHTML({
           iconKind:'speed', title:'Desempenho Quadrimestral', classe:d.desempenho,
           value:d.notaFinal, domainMax:10, decimals:1, suffix:'', bands:CLASS_BANDS_NOTA_OV, gaugeId:'ovGaugeNota',
           valueTxt:fmtDec(d.notaFinal,1), valueCap:'M1: '+fmtDec(d.pontosM1,1)+' ('+(d.classificacaoM1||'—')+') · M2: '+fmtDec(d.pontosM2,1)+' ('+(d.classificacaoM2||'—')+') | Pesos: 6 + 4',
-          ringTxt:fmtDec(d.notaFinal,1), 
+          ringTxt:fmtDec(d.notaFinal,1),
           anterior:quadAnterior.notaFinal, legend:OV_LEGEND_NOTA
         });
 
