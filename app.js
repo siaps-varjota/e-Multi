@@ -1485,11 +1485,11 @@
     var delta = atual - anterior;
     var dir = delta > 0.0001 ? 'up' : (delta < -0.0001 ? 'down' : 'flat');
     var arrow = dir==='up' ? '↗' : (dir==='down' ? '↘' : '→');
-    var deltaColor = dir==='up' ? '#16a34a' : (dir==='down' ? '#dc2626' : 'var(--ink-soft)');
+    var deltaColor = dir==='up' ? '#15803d' : (dir==='down' ? '#b91c1c' : 'var(--ink-soft)');
     var deltaTxt = (delta>0?'+':'')+fmtDec(delta,decimals)+suffix;
     var fracAtual = Math.max(0, Math.min(1, atual/domainMax));
     var fracAnterior = Math.max(0, Math.min(1, anterior/domainMax));
-    var fillColor = dir==='down' ? '#fca5a5' : '#86efac';
+    var fillColor = dir==='down' ? '#f87171' : '#4ade80';
     return '<div class="ov-evo">'
       + '<div class="ov-evo-head">'
       +   '<p class="ov-evo-title">Evolução (quadrimestre)</p>'
