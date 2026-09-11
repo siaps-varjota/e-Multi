@@ -1396,7 +1396,7 @@
       var a1 = 180 - (b.from/domainMax)*180;
       var a2 = 180 - (b.to/domainMax)*180;
       var ativa = (b.classe === classeAtual);
-      return '<path d="'+arcPath(cx,cy,r,a1,a2)+'" stroke="'+b.color+'" stroke-width="'+thick+'" fill="none" stroke-opacity="'+(ativa?1:0.22)+'"/>';
+      return '<path d="'+arcPath(cx,cy,r,a1,a2)+'" stroke="'+b.color+'" stroke-width="'+thick+'" fill="none" stroke-opacity="'+(ativa?1:0.35)+'"/>';
     }).join('');
     var frac = (value===null || value===undefined || isNaN(value)) ? 0 : Math.max(0, Math.min(1, value/domainMax));
     var targetAngle = 180 - frac*180;
