@@ -315,7 +315,25 @@
   .section-title{font-size:13px;color:var(--ink-soft);margin:26px 0 10px;font-weight:600;}
   .comp-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:18px;}
   .comp-card{min-width:0;}
-  .comp-card h4{font-size:14.5px;font-weight:500;margin:0 0 12px;}
+  .comp-card h4{font-size:14.5px;font-weight:500;margin:0;}
+  .comp-card-head{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+  .comp-card-icon{
+    width:30px;height:30px;border-radius:50%;background:#EAF6EF;color:var(--header-bg);
+    display:flex;align-items:center;justify-content:center;flex:0 0 auto;
+  }
+  .comp-card-icon svg{width:16px;height:16px;}
+  .comp-card-head h4{flex:1 1 auto;min-width:0;}
+  .comp-card-total{
+    flex:0 0 auto;background:#EAF6EF;color:var(--header-bg);font-weight:700;font-size:13px;
+    padding:5px 12px;border-radius:8px;
+  }
+  .meta-mini-head{display:flex;align-items:center;gap:9px;margin-bottom:12px;}
+  .meta-mini-head h4{margin:0;}
+  .meta-mini-head-icon{
+    width:26px;height:26px;border-radius:50%;background:#EAF6EF;color:var(--header-bg);
+    display:flex;align-items:center;justify-content:center;flex:0 0 auto;
+  }
+  .meta-mini-head-icon svg{width:14px;height:14px;}
 
   /* Layout das abas M1/M2: composição (numerador em cima, denominador
      embaixo) à esquerda, gauge à direita — pra otimizar espaço vertical. */
