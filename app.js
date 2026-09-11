@@ -418,6 +418,15 @@
     var txt = GAUGE_INTERPRETATION[classLabel] || 'refletindo o desempenho atual das ações do programa.';
     return 'O indicador está em nível <b>'+(classLabel||'—')+'</b>, '+txt;
   }
+  // Cabeçalho dos cards de Numerador/Denominador: ícone de pessoas +
+  // título + badge com o valor total, no modelo das imagens de referência.
+  function compCardHeaderHTML(title, totalValue){
+    return '<div class="comp-card-head">'
+      + '<div class="comp-card-icon"><svg viewBox="0 0 24 24">'+OV_ICONS.users+'</svg></div>'
+      + '<h4>'+title+'</h4>'
+      + '<span class="comp-card-total">'+fmtInt(totalValue)+'</span>'
+      + '</div>';
+  }
 
   // ---------- Multi-select arredondado (Equipe / Quadrimestre / Mês) ----------
   // Componente genérico: em modo multi:true permite marcar vários valores
@@ -1654,7 +1663,8 @@
         + alertHtml;
     }).join('');
     return '<div class="card comp-card meta-mini-card">'
-      + '<h4>Meta do quadrimestre'+(preliminar ? ' <span class="pill-preliminar-mini">Preliminar</span>' : '')+'</h4>'
+      + '<div class="meta-mini-head"><span class="meta-mini-head-icon">'+METAS_ICON_SVG+'</span>'
+      +   '<h4>Meta do quadrimestre'+(preliminar ? ' <span class="pill-preliminar-mini">Preliminar</span>' : '')+'</h4></div>'
       + '<div class="meta-mini-rows">'+rows+'</div>'
       + '</div>';
   }
@@ -1997,10 +2007,10 @@
       ], denM2Gauge);
 
     document.getElementById('compRow').innerHTML =
-        '<div class="card comp-card"><h4>Numerador do M1</h4>'+numM1Bar+'</div>'
-      + '<div class="card comp-card"><h4>Denominador do M1</h4>'+denM1Bar+'</div>'
-      + '<div class="card comp-card"><h4>Numerador do M2</h4>'+numM2Bar+'</div>'
-      + '<div class="card comp-card"><h4>Denominador do M2</h4>'+denM2Bar+'</div>';
+        '<div class="card comp-card">'+compCardHeaderHTML('Numerador do M1', numM1Gauge)+numM1Bar+'</div>'
+      + '<div class="card comp-card">'+compCardHeaderHTML('Denominador do M1', denM1Gauge)+denM1Bar+'</div>'
+      + '<div class="card comp-card">'+compCardHeaderHTML('Numerador do M2', numM2Gauge)+numM2Bar+'</div>'
+      + '<div class="card comp-card">'+compCardHeaderHTML('Denominador do M2', denM2Gauge)+denM2Bar+'</div>';
 
     // ---- Visão geral: 3 cards no modelo "ícone + anel + evolução" ----
     var quadAnterior = calcularQuadrimestreAnterior();
@@ -2045,8 +2055,8 @@
         fmtInt(numM1Gauge)+' atendimentos ÷ '+fmtInt(denM1Gauge)+' pessoas', LEGEND_M1,
         quadAnterior.m1, 2, '', '≥ '+fmtDec(M1_META_THRESHOLDS[0].value,2));
     document.getElementById('compRowM1').innerHTML =
-        '<div class="card comp-card"><h4>Numerador do M1</h4>'+numM1Bar+'</div>'
-      + '<div class="card comp-card"><h4>Denominador do M1</h4>'+denM1Bar+'</div>'
+        '<div class="card comp-card">'+compCardHeaderHTML('Numerador do M1', numM1Gauge)+numM1Bar+'</div>'
+      + '<div class="card comp-card">'+compCardHeaderHTML('Denominador do M1', denM1Gauge)+denM1Bar+'</div>'
       + metaQuadrimestreMiniHTML(d.denominadorM1, 'pessoas atendidas', metaM1.cards, metaM1.preliminar);
     renderListsSection('listsM1', m1ListNames());
 
@@ -2058,8 +2068,8 @@
         fmtInt(numM2Gauge)+' compartilhadas ÷ '+fmtInt(denM2Gauge)+' ações', LEGEND_M2,
         quadAnterior.m2, 1, '%', '≥ '+fmtDec(M2_META_THRESHOLDS[0].value*100,2)+'%');
     document.getElementById('compRowM2').innerHTML =
-        '<div class="card comp-card"><h4>Numerador do M2</h4>'+numM2Bar+'</div>'
-      + '<div class="card comp-card"><h4>Denominador do M2</h4>'+denM2Bar+'</div>'
+        '<div class="card comp-card">'+compCardHeaderHTML('Numerador do M2', numM2Gauge)+numM2Bar+'</div>'
+      + '<div class="card comp-card">'+compCardHeaderHTML('Denominador do M2', denM2Gauge)+denM2Bar+'</div>'
       + metaQuadrimestreMiniHTML(d.denominadorM2, 'ações realizadas', metaM2.cards, metaM2.preliminar);
     renderListsSection('listsM2', m2ListNames());
 
