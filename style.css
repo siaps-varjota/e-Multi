@@ -262,7 +262,7 @@
      ocupa o lugar do badge de status que existia ali antes, então tem
      mais espaço sobrando e fica melhor num tamanho maior que o das
      mini-versões usadas em outros lugares). */
-  .gauge-card .ov-evo{width:100%;padding:18px 20px;margin-top:6px;}
+  .gauge-card .ov-evo{width:100%;padding:26px 20px;margin-top:6px;}
   .gauge-card .ov-evo-title{font-size:13px;}
   .gauge-card .ov-evo-delta{font-size:16px;}
   .gauge-card .ov-evo-track{height:10px;margin:20px 0 12px;}
