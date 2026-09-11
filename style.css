@@ -12,10 +12,10 @@
     --pill-suficiente:#C68A3D;
     --pill-bom:#6B8F71;
     --pill-otimo:#2F6F5E;
-    --arc-regular:#DC4C4C;
-    --arc-suficiente:#F2A93B;
-    --arc-bom:#4CAF6D;
-    --arc-otimo:#3B7DDD;
+    --arc-regular:#D93A3A;
+    --arc-suficiente:#EC9A1D;
+    --arc-bom:#3FA25E;
+    --arc-otimo:#2C6FD1;
     --radius:10px;
   }
   *{box-sizing:border-box;}
