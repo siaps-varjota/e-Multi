@@ -291,10 +291,10 @@
         numeradorM1: soma('numeradorM1'),
         denominadorM1: pessoasLista.length,
         // Versões "janela": média das 4 janelas móveis que compõem o
-        // m1/m2 acima — usadas nos cards de Composição e na legenda do
-        // gauge, pra tudo bater com o valor do ponteiro. Meta do
-        // quadrimestre continua usando os totais reais do quadrimestre
-        // (numeradorM1/denominadorM1 acima), que é progresso de fato.
+        // m1/m2 acima — usadas nos cards de Composição, na legenda do
+        // gauge e na Meta do quadrimestre, pra tudo bater com o valor
+        // do ponteiro (mesma base do m1/m2 exibido, não os totais
+        // reais do quadrimestre acima).
         atendimentosIndividuaisJanela: mediaJanela('atendimentosIndividuais'),
         participacoesColetivasJanela: mediaJanela('participacoesColetivas'),
         numeradorM1Janela: mediaJanela('numeradorM1'),
@@ -1976,9 +1976,9 @@
     // existir a versão "Janela" (média do quadrimestre / vários meses
     // selecionados), usa ela; num mês único o próprio d.numeradorM1/
     // d.denominadorM1 JÁ é a janela (ver aplicarMesReferencia), então cai
-    // nele direto. Meta do quadrimestre é a única seção que continua nos
-    // totais reais (d.numeradorM1/d.denominadorM1), pra refletir o
-    // progresso de fato dentro do período.
+    // nele direto. Meta do quadrimestre usa essas MESMAS variáveis (num/
+    // denM1Gauge, num/denM2Gauge), pra bater com o valor do ponteiro do
+    // gauge em vez dos totais reais do quadrimestre.
     var numM1Gauge = d.numeradorM1Janela!=null ? d.numeradorM1Janela : d.numeradorM1;
     var denM1Gauge = d.denominadorM1Janela!=null ? d.denominadorM1Janela : d.denominadorM1;
     var numM2Gauge = d.numeradorM2Janela!=null ? d.numeradorM2Janela : d.numeradorM2;
@@ -2039,12 +2039,12 @@
 
     // ---- Meta do quadrimestre: alvo de atendimentos/ações compartilhadas
     // pra bater "Bom" e "Ótimo" em M1 e M2, com ritmo médio necessário. ----
-    var metaM1 = calcularMetasQuadrimestre(d.numeradorM1, d.denominadorM1, M1_META_THRESHOLDS, 'atend.',
+    var metaM1 = calcularMetasQuadrimestre(numM1Gauge, denM1Gauge, M1_META_THRESHOLDS, 'atend.',
       'atendimentos (retornos) de pessoas que foram atendidas nos últimos 4 meses');
-    var metaM2 = calcularMetasQuadrimestre(d.numeradorM2, d.denominadorM2, M2_META_THRESHOLDS, 'ações');
+    var metaM2 = calcularMetasQuadrimestre(numM2Gauge, denM2Gauge, M2_META_THRESHOLDS, 'ações');
     document.getElementById('metaQuadRow').innerHTML =
-        metaQuadrimestreHTML('Meta do quadrimestre — M1', d.denominadorM1, 'pessoas atendidas', metaM1.cards, metaM1.preliminar)
-      + metaQuadrimestreHTML('Meta do quadrimestre — M2', d.denominadorM2, 'ações realizadas', metaM2.cards, metaM2.preliminar);
+        metaQuadrimestreHTML('Meta do quadrimestre — M1', denM1Gauge, 'pessoas atendidas', metaM1.cards, metaM1.preliminar)
+      + metaQuadrimestreHTML('Meta do quadrimestre — M2', denM2Gauge, 'ações realizadas', metaM2.cards, metaM2.preliminar);
 
     // ---- Aba M1: mesmo layout/estilo da aba M2 (gauge padrão +
     // comp-card de Numerador/Denominador + meta mini) + listas ----
@@ -2057,7 +2057,7 @@
     document.getElementById('compRowM1').innerHTML =
         '<div class="card comp-card">'+compCardHeaderHTML('Numerador do M1', numM1Gauge)+numM1Bar+'</div>'
       + '<div class="card comp-card">'+compCardHeaderHTML('Denominador do M1', denM1Gauge)+denM1Bar+'</div>'
-      + metaQuadrimestreMiniHTML(d.denominadorM1, 'pessoas atendidas', metaM1.cards, metaM1.preliminar);
+      + metaQuadrimestreMiniHTML(denM1Gauge, 'pessoas atendidas', metaM1.cards, metaM1.preliminar);
     renderListsSection('listsM1', m1ListNames());
 
     // ---- Aba M2: gauge + composição do M2 + listas ----
@@ -2070,7 +2070,7 @@
     document.getElementById('compRowM2').innerHTML =
         '<div class="card comp-card">'+compCardHeaderHTML('Numerador do M2', numM2Gauge)+numM2Bar+'</div>'
       + '<div class="card comp-card">'+compCardHeaderHTML('Denominador do M2', denM2Gauge)+denM2Bar+'</div>'
-      + metaQuadrimestreMiniHTML(d.denominadorM2, 'ações realizadas', metaM2.cards, metaM2.preliminar);
+      + metaQuadrimestreMiniHTML(denM2Gauge, 'ações realizadas', metaM2.cards, metaM2.preliminar);
     renderListsSection('listsM2', m2ListNames());
 
     // Tendência mês a mês: cada ponto é o M1/M2 calculado com sua própria
