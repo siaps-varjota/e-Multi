@@ -335,49 +335,74 @@
   }
   .meta-mini-head-icon svg{width:14px;height:14px;}
 
-  /* Layout das abas M1/M2: composição (numerador em cima, denominador
-     embaixo) à esquerda, gauge à direita — pra otimizar espaço vertical. */
-  /* Layout das abas M1/M2: gauge à esquerda, composição (numerador,
-     denominador, meta do quadrimestre) empilhada à direita — os 3 cards
-     dividem igualmente a altura da coluna, que fica igual à do gauge
-     (align-items:stretch). */
-  .mm-layout{display:flex;gap:20px;flex-wrap:wrap;align-items:stretch;margin-bottom:8px;}
-  .mm-comp-col{flex:1 1 280px;min-width:260px;display:flex;flex-direction:column;gap:18px;}
-  .mm-comp-col .comp-card{flex:1;display:flex;flex-direction:column;justify-content:center;}
-  .mm-gauge-col{flex:1.5 1 340px;min-width:300px;display:flex;}
-  .mm-gauge-col .gauge-card{flex:1;padding:30px 28px;}
-  /* Gauge maior só aqui (abas M1/M2) — não mexe no gauge-row da Visão geral. */
-  .mm-gauge-col .gauge-svg{max-width:320px;margin-bottom:-18px;}
-  .mm-gauge-col .gauge-card h3{font-size:18px;}
-  .mm-gauge-col .gauge-value{margin-top:-8px;}
-  .mm-gauge-col .gauge-card .formula{font-size:13.5px;}
-  .mm-gauge-col .gauge-value{font-size:48px;}
-  .mm-gauge-col .gauge-value .unit{font-size:25px;}
-  .mm-gauge-col .pill{font-size:14px;padding:7px 16px;}
-  .mm-gauge-col .gauge-note{font-size:13.5px;margin-top:8px;}
-  .mm-gauge-col .gauge-legend{font-size:12.5px;gap:5px 16px;}
-  .mm-gauge-col .gauge-legend i{width:9px;height:9px;}
-  /* O card do gauge é esticado (align-items:stretch no .mm-layout) até a
-     altura da coluna de composição ao lado, que normalmente é mais alta
-     (numerador + denominador + meta). Antes isso deixava um vão vazio
-     solto na base do card; agora o bloco de Evolução cresce pra ocupar
-     esse espaço, com o conteúdo centralizado nele, em vez de sobrar em
-     branco embaixo da legenda de faixas. */
-  .mm-gauge-col .gauge-card .ov-evo{flex:1 1 auto;display:flex;flex-direction:column;justify-content:center;}
-  .mm-gauge-col .gauge-card .gauge-legend{flex:0 0 auto;}
-  @media (max-width:720px){
-    .mm-layout{flex-direction:column;}
-    .mm-comp-col .comp-card{flex:none;}
+  /* ---------- Cabeçalho das abas M1/M2 (ícone + "M1"/"M2" + título) ---------- */
+  .ip-header{display:flex;align-items:center;gap:14px;margin-bottom:18px;}
+  .ip-header-icon{
+    width:44px;height:44px;border-radius:12px;background:var(--header-bg);color:#fff;
+    display:flex;align-items:center;justify-content:center;flex:0 0 auto;
+  }
+  .ip-header-icon svg{width:23px;height:23px;}
+  .ip-header-text h2{margin:0;font-size:18px;font-weight:600;color:var(--ink);}
+  .ip-header-text p{margin:2px 0 0;font-size:12.5px;color:var(--ink-soft);}
+  .ip-m-tag{color:var(--header-bg);font-weight:800;margin-right:9px;}
+
+  /* ---------- Layout de 3 colunas das abas M1/M2 ---------- */
+  /* Coluna 1: gauge + resultado; coluna 2: composição (numerador +
+     denominador) empilhada; coluna 3: evolução + meta do quadrimestre
+     empilhada — modelo das imagens de referência. */
+  .ip-layout{display:grid;grid-template-columns:1.2fr 1.05fr .95fr;gap:18px;align-items:stretch;margin-bottom:16px;}
+  .ip-comp-col{display:flex;flex-direction:column;gap:18px;}
+  .ip-comp-col .comp-card{flex:1;display:flex;flex-direction:column;justify-content:center;}
+  .ip-side-col{display:flex;flex-direction:column;gap:18px;}
+  .ip-side-col .meta-mini-card{flex:1;display:flex;flex-direction:column;justify-content:center;}
+  @media (max-width:980px){
+    .ip-layout{grid-template-columns:1fr;}
   }
 
+  /* Card do gauge (coluna 1): arco à esquerda, valor/badge/legenda à direita,
+     lado a lado dentro do mesmo cartão. */
+  .ip-gauge-card{display:flex;flex-direction:column;justify-content:center;height:100%;}
+  .ip-gauge-row{display:flex;align-items:center;gap:18px;flex-wrap:wrap;}
+  .ip-gauge-visual{flex:1 1 190px;min-width:170px;max-width:230px;}
+  .ip-gauge-visual .gauge-svg{width:100%;height:auto;}
+  .ip-result-block{flex:1 1 140px;min-width:130px;}
+  .ip-result-label{margin:0;font-size:12.5px;color:var(--ink-soft);}
+  .ip-result-value{font-family:'Fraunces',serif;font-size:40px;font-weight:600;margin:2px 0 10px;line-height:1;color:var(--ink);}
+  .ip-result-value .unit{font-size:21px;font-weight:500;color:var(--ink-soft);}
+  .ip-result-cap{margin:10px 0 0;font-size:11.5px;color:var(--ink-soft);line-height:1.4;}
+
+  /* Card de Evolução (coluna 3) */
+  .ip-evo-card{display:flex;flex-direction:column;}
+  .ip-evo-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:16px;}
+  .ip-evo-head-left{display:flex;align-items:center;gap:9px;}
+  .ip-evo-head-left svg{width:16px;height:16px;color:var(--header-bg);flex:0 0 auto;}
+  .ip-evo-head-left h4{margin:0;font-size:13.5px;font-weight:700;color:var(--ink);}
+  .ip-evo-delta{font-size:13px;font-weight:700;white-space:nowrap;}
+  .ip-evo-track{
+    position:relative;height:7px;border-radius:999px;margin:6px 0 10px;
+    background:linear-gradient(90deg,var(--arc-regular),var(--arc-suficiente),var(--arc-bom),var(--arc-otimo));
+  }
+  .ip-evo-mark{position:absolute;top:-4px;bottom:-4px;width:3px;border-radius:2px;background:var(--ink);box-shadow:0 0 0 2px #fff;}
+  .ip-evo-labels{display:flex;justify-content:space-between;font-size:11.5px;color:var(--ink-soft);}
+  .ip-evo-labels span{display:block;}
+  .ip-evo-labels b{display:block;font-size:16px;color:var(--ink);font-weight:700;margin-top:3px;}
+
+  /* Card de "Leitura" (abaixo das 3 colunas) */
+  .ip-reading{display:flex;gap:12px;align-items:flex-start;background:#EAF6EF;border-color:#D8ECDD;margin-bottom:24px;}
+  .ip-reading-icon{flex:0 0 auto;font-size:16px;line-height:1.55;}
+  .ip-reading-text{font-size:12.5px;color:var(--ink);line-height:1.65;}
+  .ip-reading-text b{color:var(--header-bg);}
+
   /* Nas abas M1/M2, cada item do Numerador/Denominador vira uma linha
-     cheia (rótulo + traço à esquerda, contagem em negrito à direita),
-     em vez dos chips que quebram linha do modelo padrão (Visão geral). */
-  .mm-comp-col .legend{flex-direction:column;flex-wrap:nowrap;gap:10px;margin-top:14px;}
-  .mm-comp-col .legend-item{width:100%;justify-content:space-between;font-size:12.5px;}
-  .mm-comp-col .legend-item i{border-radius:50%;}
-  .mm-comp-col .legend-label{color:var(--ink);}
-  .mm-comp-col .legend-count{font-weight:700;color:var(--ink);}
+     cheia (rótulo + traço à esquerda, contagem + percentual em negrito
+     à direita), em vez dos chips que quebram linha do modelo padrão
+     (Visão geral). */
+  .ip-comp-col .legend{flex-direction:column;flex-wrap:nowrap;gap:10px;margin-top:14px;}
+  .ip-comp-col .legend-item{width:100%;justify-content:space-between;font-size:12.5px;}
+  .ip-comp-col .legend-item i{border-radius:50%;}
+  .ip-comp-col .legend-label{color:var(--ink);}
+  .ip-comp-col .legend-count{font-weight:700;color:var(--ink);}
+  .legend-pct{font-weight:500;color:var(--ink-soft);margin-left:3px;}
 
   /* ---------- Mini card de Meta do quadrimestre (dentro do mm-comp-col) ---------- */
   .meta-mini-rows{display:flex;flex-direction:column;gap:10px;}
