@@ -1971,21 +1971,21 @@
           iconKind:'pulse', title:'M1 — Média de Atendimentos por Pessoa', classe:d.classificacaoM1,
           value:d.m1, domainMax:4, decimals:2, suffix:'', bands:CLASS_BANDS_M1_OV, gaugeId:'ovGaugeM1',
           valueTxt:fmtDec(d.m1,2), valueCap:fmtInt(numM1Gauge)+' atendimentos ÷ '+fmtInt(denM1Gauge)+' pessoas',
-          ringTxt:fmtDec(d.m1,2), scaleCap:'de 4',
+          ringTxt:fmtDec(d.m1,2),
           anterior:quadAnterior.m1, legend:OV_LEGEND_M1
         })
       + overviewCardHTML({
           iconKind:'users', title:'M2 — Ações Interprofissionais', classe:d.classificacaoM2,
           value:d.m2, domainMax:8, decimals:1, suffix:'%', bands:CLASS_BANDS_M2_OV, gaugeId:'ovGaugeM2',
           valueTxt:fmtDec(d.m2,1)+'%', valueCap:fmtInt(numM2Gauge)+' compartilhadas ÷ '+fmtInt(denM2Gauge)+' ações',
-          ringTxt:fmtDec(d.m2,1), scaleCap:'de 8%',
+          ringTxt:fmtDec(d.m2,1), 
           anterior:quadAnterior.m2, legend:OV_LEGEND_M2
         })
       + overviewCardHTML({
           iconKind:'speed', title:'Desempenho Quadrimestral', classe:d.desempenho,
           value:d.notaFinal, domainMax:10, decimals:1, suffix:'', bands:CLASS_BANDS_NOTA_OV, gaugeId:'ovGaugeNota',
           valueTxt:fmtDec(d.notaFinal,1), valueCap:'M1: '+fmtDec(d.pontosM1,1)+' ('+(d.classificacaoM1||'—')+') · M2: '+fmtDec(d.pontosM2,1)+' ('+(d.classificacaoM2||'—')+') | Pesos: 6 + 4',
-          ringTxt:fmtDec(d.notaFinal,1), scaleCap:'de 10',
+          ringTxt:fmtDec(d.notaFinal,1), 
           anterior:quadAnterior.notaFinal, legend:OV_LEGEND_NOTA
         });
 
