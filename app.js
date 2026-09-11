@@ -1735,39 +1735,6 @@
       + '</div>';
   }
 
-  // Cartão redesenhado exclusivo das abas M1/M2: prioriza o valor atual,
-  // a distância até a meta e a leitura da faixa de desempenho. A lógica e
-  // os valores continuam vindo dos mesmos dados calculados anteriormente.
-  function indicadorProgressCardHTML(cfg){
-    var value = Number(cfg.value) || 0;
-    var max = cfg.max || 1;
-    var meta = Number(cfg.meta) || 0;
-    var progress = Math.max(0, Math.min(100, value/max*100));
-    var metaPos = Math.max(0, Math.min(100, meta/max*100));
-    var st = ovStatus(cfg.classificacao);
-    var faltam = cfg.faltam!=null ? cfg.faltam : null;
-    var action = faltam!=null && faltam>0
-      ? 'Faltam '+fmtInt(faltam)+' '+(cfg.unidadeFaltam||'itens')+' para atingir a meta'
-      : 'Meta atingida';
-    return '<div class="indicator-redesign-card">'
-      + '<div class="indicator-redesign-top">'
-      +   '<div><span class="indicator-kicker">INDICADOR '+cfg.code+'</span>'
-      +   '<h3>'+cfg.title+'</h3><p>'+cfg.subtitle+'</p></div>'
-      +   '<span class="indicator-status" style="background:'+st.badgeBg+';color:'+st.badgeText+';">'+(cfg.classificacao||'—')+'</span>'
-      + '</div>'
-      + '<div class="indicator-redesign-value">'+fmtDec(value,cfg.decimals||2)+(cfg.suffix||'')+'</div>'
-      + '<div class="indicator-redesign-meta"><span>Meta do período</span><b>'+cfg.metaLabel+'</b></div>'
-      + '<div class="indicator-progress-wrap"><div class="indicator-progress-track">'
-      +   '<span class="indicator-progress-fill" style="width:'+progress+'%;background:'+cfg.color+';"></span>'
-      +   '<i class="indicator-progress-marker" style="left:'+metaPos+'%;background:'+cfg.metaColor+';"></i>'
-      + '</div><div class="indicator-progress-labels"><span>0</span><span class="current">Atual '+fmtDec(value,cfg.decimals||2)+(cfg.suffix||'')+'</span><span>Meta '+cfg.metaLabel+'</span></div></div>'
-      + '<div class="indicator-action" style="border-color:'+cfg.metaColor+';background:color-mix(in srgb,'+cfg.metaColor+' 10%,white);">'
-      +   '<span class="indicator-action-icon">'+(faltam!=null && faltam>0 ? '!' : '✓')+'</span><b>'+action+'</b>'
-      + '</div>'
-      + '<div class="indicator-formula">'+cfg.formula+'</div>'
-      + '</div>';
-  }
-
   function calcularMetasQuadrimestre(numerador, denominador, thresholds, unidade, unidadeFaltam){
     var meses = mesesDoQuadrimestre(quadSelecionado.ano, quadSelecionado.qIndex);
     var inicioQuad = new Date(meses[0].getFullYear(), meses[0].getMonth(), 1, 0,0,0,0);
@@ -2079,16 +2046,14 @@
         metaQuadrimestreHTML('Meta do quadrimestre — M1', denM1Gauge, 'pessoas atendidas', metaM1.cards, metaM1.preliminar)
       + metaQuadrimestreHTML('Meta do quadrimestre — M2', denM2Gauge, 'ações realizadas', metaM2.cards, metaM2.preliminar);
 
-    // ---- Abas M1/M2: novo layout visual, mantendo os mesmos dados ----
+    // ---- Aba M1: mesmo layout/estilo da aba M2 (gauge padrão +
+    // comp-card de Numerador/Denominador + meta mini) + listas ----
     document.getElementById('gaugeRowM1').innerHTML =
-      indicadorProgressCardHTML({
-        code:'M1', title:'Atendimentos por pessoa',
-        subtitle:'Atendimentos individuais e coletivos ÷ pessoas atendidas',
-        value:d.m1, max:4, meta:2, metaLabel:'2,00', suffix:'', decimals:2,
-        classificacao:d.classificacaoM1, color:'#153F35', metaColor:'#C68A3D',
-        faltam:metaM1.cards[0].faltam, unidadeFaltam:'atendimentos',
-        formula:fmtInt(numM1Gauge)+' atendimentos ÷ '+fmtInt(denM1Gauge)+' pessoas'
-      });
+      gaugeCardHTML('M1 — Média de atendimentos por pessoa',
+        'Atendimentos individuais + coletivos ÷ pessoas atendidas',
+        d.m1, 4, CLASS_BANDS_M1, 'needle-m1tab-m1', fmtDec(d.m1,2), d.classificacaoM1,
+        fmtInt(numM1Gauge)+' atendimentos ÷ '+fmtInt(denM1Gauge)+' pessoas', LEGEND_M1,
+        quadAnterior.m1, 2, '', '≥ '+fmtDec(M1_META_THRESHOLDS[0].value,2));
     document.getElementById('compRowM1').innerHTML =
         '<div class="card comp-card">'+compCardHeaderHTML('Numerador do M1', numM1Gauge)+numM1Bar+'</div>'
       + '<div class="card comp-card">'+compCardHeaderHTML('Denominador do M1', denM1Gauge)+denM1Bar+'</div>'
@@ -2097,14 +2062,11 @@
 
     // ---- Aba M2: gauge + composição do M2 + listas ----
     document.getElementById('gaugeRowM2').innerHTML =
-      indicadorProgressCardHTML({
-        code:'M2', title:'Ações compartilhadas',
-        subtitle:'Ações compartilhadas ÷ ações realizadas × 100',
-        value:d.m2, max:8, meta:2.5, metaLabel:'2,50%', suffix:'%', decimals:2,
-        classificacao:d.classificacaoM2, color:'#153F35', metaColor:'#C68A3D',
-        faltam:metaM2.cards[0].faltam, unidadeFaltam:'ações',
-        formula:fmtInt(numM2Gauge)+' compartilhadas ÷ '+fmtInt(denM2Gauge)+' ações'
-      });
+      gaugeCardHTML('M2 — Ações compartilhadas',
+        'Ações compartilhadas ÷ ações realizadas × 100',
+        d.m2, 8, CLASS_BANDS_M2, 'needle-m2tab-m2', fmtDec(d.m2,2)+'<span class="unit">%</span>', d.classificacaoM2,
+        fmtInt(numM2Gauge)+' compartilhadas ÷ '+fmtInt(denM2Gauge)+' ações', LEGEND_M2,
+        quadAnterior.m2, 1, '%', '≥ '+fmtDec(M2_META_THRESHOLDS[0].value*100,2)+'%');
     document.getElementById('compRowM2').innerHTML =
         '<div class="card comp-card">'+compCardHeaderHTML('Numerador do M2', numM2Gauge)+numM2Bar+'</div>'
       + '<div class="card comp-card">'+compCardHeaderHTML('Denominador do M2', denM2Gauge)+denM2Bar+'</div>'
