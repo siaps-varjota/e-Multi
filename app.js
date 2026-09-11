@@ -1585,9 +1585,39 @@
   }
 
   // ---------- Cards das abas M1/M2 no modelo de 3 colunas (imagem de
-  // referência): coluna 1 só com o arco + resultado; coluna 3 com
-  // Evolução (quadrimestre) num card próprio. ----------
-  function ipGaugeCardHTML(value, domainMax, bands, gaugeId, valueHtml, classLabel, capText){
+  // referência): coluna 1 com o arco + resultado + Evolução do
+  // quadrimestre embutida no mesmo cartão, abaixo do gauge. ----------
+  var IP_TREND_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>';
+
+  // Conteúdo interno de "Evolução (Quadrimestre)" — sem o wrapper de card
+  // próprio, pra poder ser embutido dentro de outro cartão (o do gauge)
+  // ou, se algum dia precisar de novo isolado, envolvido por fora.
+  function ipEvoContentHTML(value, anterior, domainMax, decimals, suffix){
+    suffix = suffix || '';
+    if(anterior==null || value==null){
+      return '<div class="ip-evo-head"><div class="ip-evo-head-left">'+IP_TREND_ICON_SVG+'<h4>Evolução (Quadrimestre)</h4></div></div>'
+        + '<p class="ov-evo-empty">Sem histórico suficiente pra comparar com o quadrimestre anterior.</p>';
+    }
+    var delta = value - anterior;
+    var dir = delta>0.0001 ? 'up' : (delta<-0.0001 ? 'down' : 'flat');
+    var arrow = dir==='up' ? '↗' : (dir==='down' ? '↘' : '→');
+    var color = dir==='up' ? '#15803d' : (dir==='down' ? '#b91c1c' : 'var(--ink-soft)');
+    var deltaTxt = (delta>0?'+':'') + fmtDec(delta,decimals) + suffix;
+    var frac = Math.max(0, Math.min(1, value/domainMax));
+    return '<div class="ip-evo-head">'
+      +   '<div class="ip-evo-head-left">'+IP_TREND_ICON_SVG+'<h4>Evolução (Quadrimestre)</h4></div>'
+      +   '<span class="ip-evo-delta" style="color:'+color+';">'+arrow+' '+deltaTxt+'</span>'
+      + '</div>'
+      + '<div class="ip-evo-track"><div class="ip-evo-mark" style="left:'+(frac*100).toFixed(1)+'%;"></div></div>'
+      + '<div class="ip-evo-labels">'
+      +   '<span>Anterior<b>'+fmtDec(anterior,decimals)+suffix+'</b></span>'
+      +   '<span style="text-align:right;">Atual<b>'+fmtDec(value,decimals)+suffix+'</b></span>'
+      + '</div>';
+  }
+
+  // Cartão do gauge (coluna 1): arco + resultado no topo, e a Evolução do
+  // quadrimestre embutida logo abaixo, dentro do mesmo cartão.
+  function ipGaugeCardHTML(value, domainMax, bands, gaugeId, valueHtml, classLabel, capText, anterior, decimals, suffix){
     return '<div class="card ip-gauge-card">'
       + '<div class="ip-gauge-row">'
       +   '<div class="ip-gauge-visual">'+buildGauge(value, domainMax, bands, gaugeId)+'</div>'
@@ -1598,37 +1628,7 @@
       +     (capText ? '<p class="ip-result-cap">'+capText+'</p>' : '')
       +   '</div>'
       + '</div>'
-      + '</div>';
-  }
-
-  var IP_TREND_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>';
-
-  // Card de "Evolução (Quadrimestre)" da coluna 3 — compara com o
-  // quadrimestre anterior (mesma base de cálculo de calcularQuadrimestreAnterior).
-  function ipEvoHTML(value, anterior, domainMax, decimals, suffix){
-    suffix = suffix || '';
-    if(anterior==null || value==null){
-      return '<div class="card ip-evo-card">'
-        + '<div class="ip-evo-head"><div class="ip-evo-head-left">'+IP_TREND_ICON_SVG+'<h4>Evolução (Quadrimestre)</h4></div></div>'
-        + '<p class="ov-evo-empty">Sem histórico suficiente pra comparar com o quadrimestre anterior.</p>'
-        + '</div>';
-    }
-    var delta = value - anterior;
-    var dir = delta>0.0001 ? 'up' : (delta<-0.0001 ? 'down' : 'flat');
-    var arrow = dir==='up' ? '↗' : (dir==='down' ? '↘' : '→');
-    var color = dir==='up' ? '#15803d' : (dir==='down' ? '#b91c1c' : 'var(--ink-soft)');
-    var deltaTxt = (delta>0?'+':'') + fmtDec(delta,decimals) + suffix;
-    var frac = Math.max(0, Math.min(1, value/domainMax));
-    return '<div class="card ip-evo-card">'
-      + '<div class="ip-evo-head">'
-      +   '<div class="ip-evo-head-left">'+IP_TREND_ICON_SVG+'<h4>Evolução (Quadrimestre)</h4></div>'
-      +   '<span class="ip-evo-delta" style="color:'+color+';">'+arrow+' '+deltaTxt+'</span>'
-      + '</div>'
-      + '<div class="ip-evo-track"><div class="ip-evo-mark" style="left:'+(frac*100).toFixed(1)+'%;"></div></div>'
-      + '<div class="ip-evo-labels">'
-      +   '<span>Anterior<b>'+fmtDec(anterior,decimals)+suffix+'</b></span>'
-      +   '<span style="text-align:right;">Atual<b>'+fmtDec(value,decimals)+suffix+'</b></span>'
-      + '</div>'
+      + '<div class="ip-evo-embed">'+ipEvoContentHTML(value, anterior, domainMax, decimals, suffix)+'</div>'
       + '</div>';
   }
 
@@ -2143,17 +2143,17 @@
         metaQuadrimestreHTML('Meta do quadrimestre — M1', denM1Gauge, 'pessoas atendidas', metaM1.cards, metaM1.preliminar)
       + metaQuadrimestreHTML('Meta do quadrimestre — M2', denM2Gauge, 'ações realizadas', metaM2.cards, metaM2.preliminar);
 
-    // ---- Aba M1: layout de 3 colunas (gauge | composição | evolução +
+    // ---- Aba M1: layout de 3 colunas (gauge + evolução | composição |
     // meta), igual ao modelo de referência, + leitura textual + listas ----
     document.getElementById('gaugeRowM1').innerHTML =
       ipGaugeCardHTML(d.m1, 4, CLASS_BANDS_M1, 'needle-m1tab-m1', fmtDec(d.m1,2), d.classificacaoM1,
-        fmtInt(numM1Gauge)+' atendimentos + '+fmtInt(denM1Gauge)+' pessoas');
+        fmtInt(numM1Gauge)+' atendimentos + '+fmtInt(denM1Gauge)+' pessoas',
+        quadAnterior.m1, 2, '');
     document.getElementById('compRowM1').innerHTML =
         '<div class="card comp-card">'+compCardHeaderHTML('Composição do numerador', numM1Gauge)+numM1Bar+'</div>'
       + '<div class="card comp-card">'+compCardHeaderHTML('Denominador do M1', denM1Gauge)+denM1Bar+'</div>';
     document.getElementById('sideRowM1').innerHTML =
-        ipEvoHTML(d.m1, quadAnterior.m1, 4, 2, '')
-      + metaQuadrimestreMiniHTML(denM1Gauge, 'pessoas atendidas', metaM1.cards, metaM1.preliminar);
+      metaQuadrimestreMiniHTML(denM1Gauge, 'pessoas atendidas', metaM1.cards, metaM1.preliminar);
     document.getElementById('readingM1').innerHTML =
       ipReadingHTML('Leitura do M1', d.m1, d.classificacaoM1, quadAnterior.m1, 2, '', CLASS_BANDS_M1, 'atendimentos por pessoa');
     renderListsSection('listsM1', m1ListNames());
@@ -2161,13 +2161,13 @@
     // ---- Aba M2: mesmo layout de 3 colunas + leitura + listas ----
     document.getElementById('gaugeRowM2').innerHTML =
       ipGaugeCardHTML(d.m2, 8, CLASS_BANDS_M2, 'needle-m2tab-m2', fmtDec(d.m2,2)+'<span class="unit">%</span>', d.classificacaoM2,
-        fmtInt(numM2Gauge)+' compartilhadas + '+fmtInt(denM2Gauge)+' ações');
+        fmtInt(numM2Gauge)+' compartilhadas + '+fmtInt(denM2Gauge)+' ações',
+        quadAnterior.m2, 2, '%');
     document.getElementById('compRowM2').innerHTML =
         '<div class="card comp-card">'+compCardHeaderHTML('Composição do numerador', numM2Gauge)+numM2Bar+'</div>'
       + '<div class="card comp-card">'+compCardHeaderHTML('Denominador do M2', denM2Gauge)+denM2Bar+'</div>';
     document.getElementById('sideRowM2').innerHTML =
-        ipEvoHTML(d.m2, quadAnterior.m2, 8, 2, '%')
-      + metaQuadrimestreMiniHTML(denM2Gauge, 'ações realizadas', metaM2.cards, metaM2.preliminar);
+      metaQuadrimestreMiniHTML(denM2Gauge, 'ações realizadas', metaM2.cards, metaM2.preliminar);
     document.getElementById('readingM2').innerHTML =
       ipReadingHTML('Leitura do M2', d.m2, d.classificacaoM2, quadAnterior.m2, 2, '%', CLASS_BANDS_M2, 'de ações compartilhadas');
     renderListsSection('listsM2', m2ListNames());
