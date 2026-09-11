@@ -1527,7 +1527,7 @@
   // Cartão no modelo "ícone + anel + evolução" (só na Visão geral).
   function overviewCardHTML(opts){
     var st = ovStatus(opts.classe);
-    return '<div class="card ov-card">'
+    return '<div class="card ov-card" style="border-top:4px solid '+pillHex(opts.classe)+';">'
       + '<div class="ov-head">'
       +   '<div class="ov-head-left">'+ovIconHTML(opts.iconKind, st)+'<h3 class="ov-title" title="'+opts.title+'">'+opts.title+'</h3></div>'
       +   '<span class="ov-badge" style="background:'+st.badgeBg+';color:'+st.badgeText+';">'+st.icon+' '+(opts.classe||'—')+'</span>'
