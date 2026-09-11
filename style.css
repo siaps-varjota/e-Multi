@@ -360,7 +360,8 @@
   }
 
   /* Card do gauge (coluna 1): arco à esquerda, valor/badge/legenda à direita,
-     lado a lado dentro do mesmo cartão. */
+     lado a lado dentro do mesmo cartão; a Evolução do quadrimestre fica
+     embutida logo abaixo, dentro do mesmo cartão (ver .ip-evo-embed). */
   .ip-gauge-card{display:flex;flex-direction:column;justify-content:center;height:100%;}
   .ip-gauge-row{display:flex;align-items:center;gap:18px;flex-wrap:wrap;}
   .ip-gauge-visual{flex:1 1 190px;min-width:170px;max-width:230px;}
@@ -370,6 +371,7 @@
   .ip-result-value{font-family:'Fraunces',serif;font-size:40px;font-weight:600;margin:2px 0 10px;line-height:1;color:var(--ink);}
   .ip-result-value .unit{font-size:21px;font-weight:500;color:var(--ink-soft);}
   .ip-result-cap{margin:10px 0 0;font-size:11.5px;color:var(--ink-soft);line-height:1.4;}
+  .ip-evo-embed{width:100%;margin-top:20px;padding-top:18px;border-top:1px solid var(--line);}
 
   /* Card de Evolução (coluna 3) */
   .ip-evo-card{display:flex;flex-direction:column;}
