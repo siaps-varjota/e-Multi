@@ -185,7 +185,7 @@
   .gauge-card .gauge-svg{max-width:161px;}
   .gauge-needle{transform:rotate(var(--target-angle,0deg));animation:gaugeSweep 900ms cubic-bezier(.2,.8,.2,1) both;}
   @keyframes gaugeSweep{from{transform:rotate(0deg);}to{transform:rotate(var(--target-angle,0deg));}}
-  .gauge-value{font-size:36px;font-weight:600;margin:-5px 0 4px;}
+  .gauge-value{font-size:36px;font-weight:600;margin:-10px 0 4px;}
   .gauge-value .unit{font-size:19px;font-weight:500;color:var(--ink-soft);}
   .gauge-note{font-size:12px;color:var(--ink-soft);margin-top:6px;}
 
