@@ -406,6 +406,18 @@
   function pillHex(c){ return CLASS_PILL_HEX[c] || "#9AA69E"; }
   function arcHex(c){ return CLASS_ARC_HEX[c] || "#9AA69E"; }
   function arcHexOv(c){ return CLASS_ARC_HEX_OV[c] || "#9AA69E"; }
+  // Texto descritivo da caixa "Interpretação" do card de gauge das abas
+  // M1/M2, de acordo com a classificação atual do indicador.
+  var GAUGE_INTERPRETATION = {
+    'Regular':    'indicando necessidade de atenção nas ações do programa.',
+    'Suficiente': 'mostrando um desempenho satisfatório das ações do programa.',
+    'Bom':        'mostrando um desempenho positivo das ações do programa.',
+    'Ótimo':      'mostrando um desempenho excelente das ações do programa.'
+  };
+  function gaugeInterpretationHTML(classLabel){
+    var txt = GAUGE_INTERPRETATION[classLabel] || 'refletindo o desempenho atual das ações do programa.';
+    return 'O indicador está em nível <b>'+(classLabel||'—')+'</b>, '+txt;
+  }
 
   // ---------- Multi-select arredondado (Equipe / Quadrimestre / Mês) ----------
   // Componente genérico: em modo multi:true permite marcar vários valores
@@ -1522,20 +1534,42 @@
       + '</div>';
   }
 
-  function gaugeCardHTML(title, formula, value, domainMax, bands, gaugeId, valueHtml, classLabel, note, legend, anterior, decimals, suffix){
+  function gaugeCardHTML(title, formula, value, domainMax, bands, gaugeId, valueHtml, classLabel, note, legend, anterior, decimals, suffix, metaLabel){
     // title/formula já aparecem no cabeçalho da aba (.indicator-tab-head)
-    // logo acima do mm-layout — aqui, dentro do card, mostramos só o
-    // rótulo interno (sem repetir o título grande de novo) e, no lugar do
-    // badge de status, o mesmo bloco "Evolução (quadrimestre)" da Visão
-    // geral (ovEvoHTML), comparando com o quadrimestre anterior.
+    // logo acima do mm-layout — aqui, dentro do card, mostramos um cabeçalho
+    // próprio com ícone + "Resultado do indicador" (usando "formula" como
+    // subtítulo) e, ao lado do gauge, uma caixa de "Interpretação" com o
+    // texto descritivo da classificação atual e a meta do período.
     return '<div class="card gauge-card">'
-      + '<div class="gauge-top-row">'
-      +   '<h3 class="gauge-top-title">Resultado do indicador</h3>'
+      + '<div class="gi-row">'
+      +   '<div class="gi-left">'
+      +     '<div class="gi-header">'
+      +       '<div class="gi-icon"><svg viewBox="0 0 24 24">'+OV_ICONS.speed+'</svg></div>'
+      +       '<div class="gi-header-text"><h3 class="gauge-top-title">Resultado do indicador</h3>'
+      +         (formula ? '<p class="gi-subtitle">'+formula+'</p>' : '')
+      +       '</div>'
+      +     '</div>'
+      +     buildGauge(value, domainMax, bands, gaugeId)
+      +     '<div class="gauge-value">'+valueHtml+'</div>'
+      +     '<span class="pill" style="background:'+pillHex(classLabel)+'">'+(classLabel||'—')+'</span>'
+      +     (note ? '<p class="gauge-note">'+note+'</p>' : '')
+      +   '</div>'
+      +   '<div class="gi-right">'
+      +     '<div class="gi-interp-header">'
+      +       '<div class="gi-interp-icon">'+METAS_ICON_SVG+'</div>'
+      +       '<h4>Interpretação</h4>'
+      +     '</div>'
+      +     '<p class="gi-interp-text">'+gaugeInterpretationHTML(classLabel)+'</p>'
+      +     (metaLabel ? (
+              '<hr class="gi-divider"/>'
+            + '<div class="gi-meta-row">'
+            +   '<span class="gi-meta-icon">💡</span>'
+            +   '<div><div class="gi-meta-label">Meta do período</div>'
+            +     '<div class="gi-meta-value">'+metaLabel+'</div></div>'
+            + '</div>'
+          ) : '')
+      +   '</div>'
       + '</div>'
-      + buildGauge(value, domainMax, bands, gaugeId)
-      + '<div class="gauge-value">'+valueHtml+'</div>'
-      + '<span class="pill" style="background:'+pillHex(classLabel)+'">'+(classLabel||'—')+'</span>'
-      + (note ? '<p class="gauge-note">'+note+'</p>' : '')
       + ovEvoHTML(value, anterior, domainMax, decimals!=null?decimals:2, suffix||'')
       + (legend ? gaugeLegendHTML(legend) : '')
       + '</div>';
@@ -2004,7 +2038,7 @@
         'Atendimentos individuais + coletivos ÷ pessoas atendidas',
         d.m1, 4, CLASS_BANDS_M1, 'needle-m1tab-m1', fmtDec(d.m1,2), d.classificacaoM1,
         fmtInt(numM1Gauge)+' atendimentos ÷ '+fmtInt(denM1Gauge)+' pessoas', LEGEND_M1,
-        quadAnterior.m1, 2, '');
+        quadAnterior.m1, 2, '', '≥ '+fmtDec(M1_META_THRESHOLDS[0].value,2));
     document.getElementById('compRowM1').innerHTML =
         '<div class="card comp-card"><h4>Numerador do M1</h4>'+numM1Bar+'</div>'
       + '<div class="card comp-card"><h4>Denominador do M1</h4>'+denM1Bar+'</div>'
@@ -2017,7 +2051,7 @@
         'Ações compartilhadas ÷ ações realizadas × 100',
         d.m2, 8, CLASS_BANDS_M2, 'needle-m2tab-m2', fmtDec(d.m2,2)+'<span class="unit">%</span>', d.classificacaoM2,
         fmtInt(numM2Gauge)+' compartilhadas ÷ '+fmtInt(denM2Gauge)+' ações', LEGEND_M2,
-        quadAnterior.m2, 1, '%');
+        quadAnterior.m2, 1, '%', '≥ '+fmtDec(M2_META_THRESHOLDS[0].value*100,2)+'%');
     document.getElementById('compRowM2').innerHTML =
         '<div class="card comp-card"><h4>Numerador do M2</h4>'+numM2Bar+'</div>'
       + '<div class="card comp-card"><h4>Denominador do M2</h4>'+denM2Bar+'</div>'
