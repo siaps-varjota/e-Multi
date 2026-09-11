@@ -76,29 +76,37 @@
   </div>
 
   <div id="tabM1" class="tab-panel">
-    <div class="indicator-tab-head">
-      <h2>M1 — Média de atendimentos por pessoa</h2>
-      <p>Atendimentos individuais + coletivos ÷ pessoas atendidas</p>
+    <div class="ip-header">
+      <div class="ip-header-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8.5" cy="8" r="3"/><path d="M2.5 19c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5" stroke-linecap="round"/><circle cx="17" cy="9" r="2.4"/><path d="M15.3 13.6c2.6.3 4.7 2.3 4.7 5.4" stroke-linecap="round"/></svg></div>
+      <div class="ip-header-text">
+        <h2><span class="ip-m-tag">M1</span>Atendimentos por pessoa</h2>
+        <p>Atendimentos individuais + coletivos ÷ pessoas atendidas</p>
+      </div>
     </div>
-    <p class="section-title">Composição do M1</p>
-    <div class="mm-layout">
-      <div class="mm-gauge-col" id="gaugeRowM1"></div>
-      <div class="mm-comp-col" id="compRowM1"></div>
+    <div class="ip-layout">
+      <div id="gaugeRowM1"></div>
+      <div class="ip-comp-col" id="compRowM1"></div>
+      <div class="ip-side-col" id="sideRowM1"></div>
     </div>
+    <div id="readingM1"></div>
     <p class="section-title">Listas</p>
     <div class="lists-section" id="listsM1"></div>
   </div>
 
   <div id="tabM2" class="tab-panel">
-    <div class="indicator-tab-head">
-      <h2>M2 — Ações compartilhadas</h2>
-      <p>Ações compartilhadas ÷ ações realizadas × 100</p>
+    <div class="ip-header">
+      <div class="ip-header-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="6" cy="12" r="2.4"/><circle cx="17" cy="6" r="2.4"/><circle cx="17" cy="18" r="2.4"/><path d="M8.2 10.8L14.8 7.2M8.2 13.2l6.6 3.6" stroke-linecap="round"/></svg></div>
+      <div class="ip-header-text">
+        <h2><span class="ip-m-tag">M2</span>Ações compartilhadas</h2>
+        <p>Ações compartilhadas ÷ ações realizadas × 100</p>
+      </div>
     </div>
-    <p class="section-title">Composição do M2</p>
-    <div class="mm-layout">
-      <div class="mm-gauge-col" id="gaugeRowM2"></div>
-      <div class="mm-comp-col" id="compRowM2"></div>
+    <div class="ip-layout">
+      <div id="gaugeRowM2"></div>
+      <div class="ip-comp-col" id="compRowM2"></div>
+      <div class="ip-side-col" id="sideRowM2"></div>
     </div>
+    <div id="readingM2"></div>
     <p class="section-title">Listas</p>
     <div class="lists-section" id="listsM2"></div>
   </div>
