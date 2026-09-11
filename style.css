@@ -219,7 +219,7 @@
   .ov-main{display:flex;align-items:center;justify-content:space-between;gap:14px;margin-bottom:16px;}
   .ov-value-block{display:flex;flex-direction:column;gap:4px;}
   .ov-value{font-family:'Fraunces',serif;font-size:36px;font-weight:600;}
-  .ov-value-cap{font-size:12px;color:var(--ink-soft);line-height:1.3;}
+  .ov-value-cap{font-size:11px;color:var(--ink-soft);line-height:1.3;}
   /* Gauges da Visão geral 30% maiores (84px -> 109px), acompanhando o
      SVG do anel (ver ovRingSVG em app.js). */
   .ov-ring-wrap{display:flex;flex-direction:column;align-items:center;flex:0 0 auto;}
