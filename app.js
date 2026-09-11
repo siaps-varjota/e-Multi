@@ -1637,10 +1637,10 @@
     var rows = cardsCfg.map(function(c){
       var status = c.faltam<=0
         ? '<span class="meta-mini-status meta-mini-status-ok"><svg class="meta-mini-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.5" fill="currentColor" stroke="none" opacity=".15"/><path d="M7.5 12.5l3 3 6-6.5"/></svg>Meta atingida</span>'
-        : '<span class="meta-mini-status">faltam '+fmtInt(c.faltam)+' '+c.unidadeFaltam+'</span>';
+        : '';
       var alertHtml = c.faltam>0
         ? '<div class="meta-mini-alert"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.5"/><path d="M12 8v5"/><circle cx="12" cy="15.8" r=".9" fill="currentColor" stroke="none"/></svg>'
-          + '<span>Faltam '+fmtInt(c.faltam)+' '+c.unidadeFaltam+' para atingir a meta '+c.label+'.</span></div>'
+          + '<span>Faltam '+fmtInt(c.faltam)+' '+c.unidadeFaltam+'.</span></div>'
         : '';
       return '<div class="meta-mini-row" style="background:color-mix(in srgb,'+c.color+' 10%,white);border-color:color-mix(in srgb,'+c.color+' 30%,white);">'
         + '<div class="meta-mini-row-left">'
