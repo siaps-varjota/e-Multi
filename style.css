@@ -357,6 +357,14 @@
   .mm-gauge-col .gauge-note{font-size:13.5px;margin-top:8px;}
   .mm-gauge-col .gauge-legend{font-size:12.5px;gap:5px 16px;}
   .mm-gauge-col .gauge-legend i{width:9px;height:9px;}
+  /* O card do gauge é esticado (align-items:stretch no .mm-layout) até a
+     altura da coluna de composição ao lado, que normalmente é mais alta
+     (numerador + denominador + meta). Antes isso deixava um vão vazio
+     solto na base do card; agora o bloco de Evolução cresce pra ocupar
+     esse espaço, com o conteúdo centralizado nele, em vez de sobrar em
+     branco embaixo da legenda de faixas. */
+  .mm-gauge-col .gauge-card .ov-evo{flex:1 1 auto;display:flex;flex-direction:column;justify-content:center;}
+  .mm-gauge-col .gauge-card .gauge-legend{flex:0 0 auto;}
   @media (max-width:720px){
     .mm-layout{flex-direction:column;}
     .mm-comp-col .comp-card{flex:none;}
