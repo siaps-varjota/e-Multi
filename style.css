@@ -310,8 +310,9 @@
   .mm-gauge-col{flex:1.5 1 340px;min-width:300px;display:flex;}
   .mm-gauge-col .gauge-card{flex:1;padding:30px 28px;}
   /* Gauge maior só aqui (abas M1/M2) — não mexe no gauge-row da Visão geral. */
-  .mm-gauge-col .gauge-svg{max-width:320px;}
+  .mm-gauge-col .gauge-svg{max-width:320px;margin-bottom:-18px;}
   .mm-gauge-col .gauge-card h3{font-size:18px;}
+  .mm-gauge-col .gauge-value{margin-top:-22px;}
   .mm-gauge-col .gauge-card .formula{font-size:13.5px;}
   .mm-gauge-col .gauge-value{font-size:48px;}
   .mm-gauge-col .gauge-value .unit{font-size:25px;}
