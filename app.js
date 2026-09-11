@@ -1584,6 +1584,92 @@
       + '</div>';
   }
 
+  // ---------- Cards das abas M1/M2 no modelo de 3 colunas (imagem de
+  // referência): coluna 1 só com o arco + resultado; coluna 3 com
+  // Evolução (quadrimestre) num card próprio. ----------
+  function ipGaugeCardHTML(value, domainMax, bands, gaugeId, valueHtml, classLabel, capText){
+    return '<div class="card ip-gauge-card">'
+      + '<div class="ip-gauge-row">'
+      +   '<div class="ip-gauge-visual">'+buildGauge(value, domainMax, bands, gaugeId)+'</div>'
+      +   '<div class="ip-result-block">'
+      +     '<p class="ip-result-label">Resultado do indicador</p>'
+      +     '<div class="ip-result-value">'+valueHtml+'</div>'
+      +     '<span class="pill" style="background:'+pillHex(classLabel)+'">'+(classLabel||'—')+'</span>'
+      +     (capText ? '<p class="ip-result-cap">'+capText+'</p>' : '')
+      +   '</div>'
+      + '</div>'
+      + '</div>';
+  }
+
+  var IP_TREND_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>';
+
+  // Card de "Evolução (Quadrimestre)" da coluna 3 — compara com o
+  // quadrimestre anterior (mesma base de cálculo de calcularQuadrimestreAnterior).
+  function ipEvoHTML(value, anterior, domainMax, decimals, suffix){
+    suffix = suffix || '';
+    if(anterior==null || value==null){
+      return '<div class="card ip-evo-card">'
+        + '<div class="ip-evo-head"><div class="ip-evo-head-left">'+IP_TREND_ICON_SVG+'<h4>Evolução (Quadrimestre)</h4></div></div>'
+        + '<p class="ov-evo-empty">Sem histórico suficiente pra comparar com o quadrimestre anterior.</p>'
+        + '</div>';
+    }
+    var delta = value - anterior;
+    var dir = delta>0.0001 ? 'up' : (delta<-0.0001 ? 'down' : 'flat');
+    var arrow = dir==='up' ? '↗' : (dir==='down' ? '↘' : '→');
+    var color = dir==='up' ? '#15803d' : (dir==='down' ? '#b91c1c' : 'var(--ink-soft)');
+    var deltaTxt = (delta>0?'+':'') + fmtDec(delta,decimals) + suffix;
+    var frac = Math.max(0, Math.min(1, value/domainMax));
+    return '<div class="card ip-evo-card">'
+      + '<div class="ip-evo-head">'
+      +   '<div class="ip-evo-head-left">'+IP_TREND_ICON_SVG+'<h4>Evolução (Quadrimestre)</h4></div>'
+      +   '<span class="ip-evo-delta" style="color:'+color+';">'+arrow+' '+deltaTxt+'</span>'
+      + '</div>'
+      + '<div class="ip-evo-track"><div class="ip-evo-mark" style="left:'+(frac*100).toFixed(1)+'%;"></div></div>'
+      + '<div class="ip-evo-labels">'
+      +   '<span>Anterior<b>'+fmtDec(anterior,decimals)+suffix+'</b></span>'
+      +   '<span style="text-align:right;">Atual<b>'+fmtDec(value,decimals)+suffix+'</b></span>'
+      + '</div>'
+      + '</div>';
+  }
+
+  // Próxima faixa acima da classificação atual (pra montar a frase "Para
+  // alcançar a faixa X, é necessário...") — usa as próprias bands do gauge.
+  function nextTierInfo(classLabel, bands){
+    var idx = -1;
+    for(var i=0;i<bands.length;i++){ if(bands[i].classe===classLabel){ idx=i; break; } }
+    if(idx<0 || idx>=bands.length-1) return null;
+    return {label: bands[idx+1].classe, threshold: bands[idx+1].from};
+  }
+
+  // Bloco "Leitura do M1/M2" (abaixo das 3 colunas): resume em texto o
+  // valor atual, a variação em relação ao período anterior e o que falta
+  // pra subir de faixa.
+  function ipReadingHTML(title, value, classLabel, anterior, decimals, suffix, bands, unitLabel){
+    var valTxt = fmtDec(value,decimals)+suffix;
+    var base = 'O indicador está em <b>'+valTxt+'</b>, classificado como <b>'+(classLabel||'—')+'</b>.';
+    var deltaTxt = '';
+    if(anterior!=null && value!=null){
+      var delta = value - anterior;
+      if(Math.abs(delta) > 0.0001){
+        var dir = delta>0 ? 'aumento' : 'redução';
+        deltaTxt = ' Houve '+dir+' de '+fmtDec(Math.abs(delta),decimals)+suffix+' em relação ao período anterior.';
+      } else {
+        deltaTxt = ' O valor se manteve estável em relação ao período anterior.';
+      }
+    }
+    var nextTxt = '';
+    var next = nextTierInfo(classLabel, bands);
+    if(next){
+      nextTxt = ' Para alcançar a faixa <b>'+next.label+'</b>, é necessário atingir pelo menos '+fmtDec(next.threshold,decimals)+suffix+' '+unitLabel+'.';
+    } else if(classLabel==='Ótimo'){
+      nextTxt = ' O indicador já está na faixa máxima (Ótimo).';
+    }
+    return '<div class="card ip-reading">'
+      + '<span class="ip-reading-icon">💡</span>'
+      + '<p class="ip-reading-text"><b>'+title+':</b> '+base+deltaTxt+nextTxt+'</p>'
+      + '</div>';
+  }
+
   // ---------- Meta do quadrimestre ----------
   // Ícone simples de alvo/meta usado no cabeçalho de cada bloco.
   var METAS_ICON_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">'
@@ -1643,11 +1729,21 @@
     // Cada faixa (Bom/Ótimo) agora é uma "caixa" própria — ponto colorido +
     // rótulo/alvo à esquerda, badge de status (faltam X / meta atingida) à
     // direita — no modelo das imagens de referência.
+    var CHECK_SVG = '<svg class="meta-mini-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.5" fill="currentColor" stroke="none" opacity=".15"/><path d="M7.5 12.5l3 3 6-6.5"/></svg>';
     var rows = cardsCfg.map(function(c){
-      var status = c.faltam<=0
-        ? '<span class="meta-mini-status meta-mini-status-ok"><svg class="meta-mini-check" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.5" fill="currentColor" stroke="none" opacity=".15"/><path d="M7.5 12.5l3 3 6-6.5"/></svg>Meta atingida</span>'
-        : '';
-      var alertHtml = c.faltam>0
+      // "Quase lá" (faltam menos que o ritmo médio de uma semana): mostra
+      // em verde, com check, mas ainda informando quanto falta — em vez do
+      // alerta vermelho, reservado pra metas mais distantes.
+      var quaseLa = c.faltam>0 && c.mediaSemana>0 && c.faltam <= c.mediaSemana;
+      var status;
+      if(c.faltam<=0){
+        status = '<span class="meta-mini-status meta-mini-status-ok">'+CHECK_SVG+'Meta atingida</span>';
+      } else if(quaseLa){
+        status = '<span class="meta-mini-status meta-mini-status-ok">'+CHECK_SVG+'Faltam '+fmtInt(c.faltam)+' '+c.unidadeFaltam+'</span>';
+      } else {
+        status = '';
+      }
+      var alertHtml = (c.faltam>0 && !quaseLa)
         ? '<div class="meta-mini-alert"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9.5"/><path d="M12 8v5"/><circle cx="12" cy="15.8" r=".9" fill="currentColor" stroke="none"/></svg>'
           + '<span>Faltam '+fmtInt(c.faltam)+' '+c.unidadeFaltam+'.</span></div>'
         : '';
@@ -1782,9 +1878,10 @@
     // contagem em negrito alinhada à direita — modelo das imagens de
     // referência — sem duplicar esta função.
     var legend = segments.map(function(s){
+      var pct = t>0 ? (s.value/t*100) : 0;
       return '<span class="legend-item"><i style="background:'+s.color+'"></i>'
         + '<span class="legend-label">'+s.label+'</span>'
-        + '<span class="legend-count">'+fmtInt(s.value)+'</span></span>';
+        + '<span class="legend-count">'+fmtInt(s.value)+'<span class="legend-pct">('+fmtDec(pct,1)+'%)</span></span></span>';
     }).join('');
     return '<div class="stackbar">'+bars+'</div><div class="legend">'+legend+'</div>';
   }
@@ -2046,31 +2143,33 @@
         metaQuadrimestreHTML('Meta do quadrimestre — M1', denM1Gauge, 'pessoas atendidas', metaM1.cards, metaM1.preliminar)
       + metaQuadrimestreHTML('Meta do quadrimestre — M2', denM2Gauge, 'ações realizadas', metaM2.cards, metaM2.preliminar);
 
-    // ---- Aba M1: mesmo layout/estilo da aba M2 (gauge padrão +
-    // comp-card de Numerador/Denominador + meta mini) + listas ----
+    // ---- Aba M1: layout de 3 colunas (gauge | composição | evolução +
+    // meta), igual ao modelo de referência, + leitura textual + listas ----
     document.getElementById('gaugeRowM1').innerHTML =
-      gaugeCardHTML('M1 — Média de atendimentos por pessoa',
-        'Atendimentos individuais + coletivos ÷ pessoas atendidas',
-        d.m1, 4, CLASS_BANDS_M1, 'needle-m1tab-m1', fmtDec(d.m1,2), d.classificacaoM1,
-        fmtInt(numM1Gauge)+' atendimentos ÷ '+fmtInt(denM1Gauge)+' pessoas', LEGEND_M1,
-        quadAnterior.m1, 2, '', '≥ '+fmtDec(M1_META_THRESHOLDS[0].value,2));
+      ipGaugeCardHTML(d.m1, 4, CLASS_BANDS_M1, 'needle-m1tab-m1', fmtDec(d.m1,2), d.classificacaoM1,
+        fmtInt(numM1Gauge)+' atendimentos + '+fmtInt(denM1Gauge)+' pessoas');
     document.getElementById('compRowM1').innerHTML =
-        '<div class="card comp-card">'+compCardHeaderHTML('Numerador do M1', numM1Gauge)+numM1Bar+'</div>'
-      + '<div class="card comp-card">'+compCardHeaderHTML('Denominador do M1', denM1Gauge)+denM1Bar+'</div>'
+        '<div class="card comp-card">'+compCardHeaderHTML('Composição do numerador', numM1Gauge)+numM1Bar+'</div>'
+      + '<div class="card comp-card">'+compCardHeaderHTML('Denominador do M1', denM1Gauge)+denM1Bar+'</div>';
+    document.getElementById('sideRowM1').innerHTML =
+        ipEvoHTML(d.m1, quadAnterior.m1, 4, 2, '')
       + metaQuadrimestreMiniHTML(denM1Gauge, 'pessoas atendidas', metaM1.cards, metaM1.preliminar);
+    document.getElementById('readingM1').innerHTML =
+      ipReadingHTML('Leitura do M1', d.m1, d.classificacaoM1, quadAnterior.m1, 2, '', CLASS_BANDS_M1, 'atendimentos por pessoa');
     renderListsSection('listsM1', m1ListNames());
 
-    // ---- Aba M2: gauge + composição do M2 + listas ----
+    // ---- Aba M2: mesmo layout de 3 colunas + leitura + listas ----
     document.getElementById('gaugeRowM2').innerHTML =
-      gaugeCardHTML('M2 — Ações compartilhadas',
-        'Ações compartilhadas ÷ ações realizadas × 100',
-        d.m2, 8, CLASS_BANDS_M2, 'needle-m2tab-m2', fmtDec(d.m2,2)+'<span class="unit">%</span>', d.classificacaoM2,
-        fmtInt(numM2Gauge)+' compartilhadas ÷ '+fmtInt(denM2Gauge)+' ações', LEGEND_M2,
-        quadAnterior.m2, 1, '%', '≥ '+fmtDec(M2_META_THRESHOLDS[0].value*100,2)+'%');
+      ipGaugeCardHTML(d.m2, 8, CLASS_BANDS_M2, 'needle-m2tab-m2', fmtDec(d.m2,2)+'<span class="unit">%</span>', d.classificacaoM2,
+        fmtInt(numM2Gauge)+' compartilhadas + '+fmtInt(denM2Gauge)+' ações');
     document.getElementById('compRowM2').innerHTML =
-        '<div class="card comp-card">'+compCardHeaderHTML('Numerador do M2', numM2Gauge)+numM2Bar+'</div>'
-      + '<div class="card comp-card">'+compCardHeaderHTML('Denominador do M2', denM2Gauge)+denM2Bar+'</div>'
+        '<div class="card comp-card">'+compCardHeaderHTML('Composição do numerador', numM2Gauge)+numM2Bar+'</div>'
+      + '<div class="card comp-card">'+compCardHeaderHTML('Denominador do M2', denM2Gauge)+denM2Bar+'</div>';
+    document.getElementById('sideRowM2').innerHTML =
+        ipEvoHTML(d.m2, quadAnterior.m2, 8, 2, '%')
       + metaQuadrimestreMiniHTML(denM2Gauge, 'ações realizadas', metaM2.cards, metaM2.preliminar);
+    document.getElementById('readingM2').innerHTML =
+      ipReadingHTML('Leitura do M2', d.m2, d.classificacaoM2, quadAnterior.m2, 2, '%', CLASS_BANDS_M2, 'de ações compartilhadas');
     renderListsSection('listsM2', m2ListNames());
 
     // Tendência mês a mês: cada ponto é o M1/M2 calculado com sua própria
