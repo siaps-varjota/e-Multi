@@ -164,6 +164,12 @@
         numeradorM1: res.data.numeradorM1, denominadorM1: res.data.denominadorM1,
         numeradorM2: res.data.numeradorM2, denominadorM2: res.data.denominadorM2,
         notaFinal: res.data.notaFinal,
+        // Campos usados só pelo relatório de divergência oficial: valor
+        // que o painel calcularia sem o override, e se este ponto teve
+        // (ou não) override oficial aplicado — ver aplicarOverrideOficial.
+        m1Oficial: !!res.data.m1Oficial, m2Oficial: !!res.data.m2Oficial,
+        numeradorM1Calculado: res.data.numeradorM1Calculado, denominadorM1Calculado: res.data.denominadorM1Calculado, m1Calculado: res.data.m1Calculado,
+        numeradorM2Calculado: res.data.numeradorM2Calculado, denominadorM2Calculado: res.data.denominadorM2Calculado, m2Calculado: res.data.m2Calculado,
         janela:janela
       });
     }
@@ -672,6 +678,16 @@
   // numerador/denominador; M2 = numerador/denominador×100). Sem dado
   // oficial completo, o valor calculado pelo painel é mantido como está.
   function aplicarOverrideOficial(data, ano, mesIdx){
+    // Guarda o valor CALCULADO pelo painel antes de qualquer substituição
+    // — usado só pelo relatório de divergência (ver gerarPdfDivergenciaOficial),
+    // pra poder comparar lado a lado com o valor oficial mesmo depois que
+    // `data` já foi sobrescrito abaixo.
+    data.numeradorM1Calculado = data.numeradorM1;
+    data.denominadorM1Calculado = data.denominadorM1;
+    data.m1Calculado = data.m1;
+    data.numeradorM2Calculado = data.numeradorM2;
+    data.denominadorM2Calculado = data.denominadorM2;
+    data.m2Calculado = data.m2;
     ['M1','M2'].forEach(function(indicador){
       var entradas = currentEquipes.map(function(eq){
         return officialOverrides[officialOverrideKey(eq.key, ano, mesIdx, indicador)];
@@ -1404,6 +1420,98 @@
     });
 
     var arquivo = slugifyFileName(nomeExibicao)+'__'+slugifyFileName(equipeLabel)+'__'+slugifyFileName(new Date().toLocaleDateString('pt-BR'))+'.pdf';
+    doc.save(arquivo);
+  }
+
+  // ---------- PDF de divergência: calculado (painel) vs. oficial (Q2-26) ----------
+  // Compara, mês a mês, o valor que o painel calcularia a partir dos
+  // dados brutos (numeradorXCalculado/denominadorXCalculado/xCalculado —
+  // guardados em aplicarOverrideOficial ANTES da substituição) com o
+  // valor oficial que efetivamente está sendo exibido (numeradorX/
+  // denominadorX/x, já com o override aplicado). Só entram no relatório
+  // os meses/indicadores em que existe dado oficial (m1Oficial/m2Oficial).
+  function gerarPdfDivergenciaOficial(serieTendencia){
+    var jspdfNs = window.jspdf;
+    if(!jspdfNs || !jspdfNs.jsPDF){
+      alert('Não foi possível carregar a biblioteca de geração de PDF (verifique a conexão com a internet) — tente novamente.');
+      return;
+    }
+    var linhas = [];
+    // Mais recente primeiro, mesma ordem da tabela de Série histórica.
+    serieTendencia.slice().reverse().forEach(function(p){
+      var mesLabel = monthShortLabel(p.mes);
+      if(p.m1Oficial){
+        var difM1 = (p.m1!=null && p.m1Calculado!=null) ? (p.m1 - p.m1Calculado) : null;
+        linhas.push([
+          mesLabel, 'M1',
+          fmtInt(p.numeradorM1Calculado)+' / '+fmtInt(p.denominadorM1Calculado), p.m1Calculado!=null ? fmtDec(p.m1Calculado,2) : '—',
+          fmtInt(p.numeradorM1)+' / '+fmtInt(p.denominadorM1), p.m1!=null ? fmtDec(p.m1,2) : '—',
+          difM1!=null ? (difM1>=0?'+':'')+fmtDec(difM1,2) : '—'
+        ]);
+      }
+      if(p.m2Oficial){
+        var difM2 = (p.m2!=null && p.m2Calculado!=null) ? (p.m2 - p.m2Calculado) : null;
+        linhas.push([
+          mesLabel, 'M2',
+          fmtInt(p.numeradorM2Calculado)+' / '+fmtInt(p.denominadorM2Calculado), p.m2Calculado!=null ? fmtDec(p.m2Calculado,2)+'%' : '—',
+          fmtInt(p.numeradorM2)+' / '+fmtInt(p.denominadorM2), p.m2!=null ? fmtDec(p.m2,2)+'%' : '—',
+          difM2!=null ? (difM2>=0?'+':'')+fmtDec(difM2,2)+'%' : '—'
+        ]);
+      }
+    });
+    if(!linhas.length){
+      alert('Não há meses com dado oficial (aba Q2-26) carregado pra esta equipe — nada pra comparar.');
+      return;
+    }
+
+    var equipeLabel = currentEquipes.map(function(e){ return e.label; }).join(' + ');
+    var doc = new jspdfNs.jsPDF({orientation:'landscape', unit:'pt', format:'a4'});
+    var pageWidth = doc.internal.pageSize.getWidth();
+    var pageHeight = doc.internal.pageSize.getHeight();
+    var margin = 28;
+
+    doc.setFillColor(21,63,53);
+    doc.rect(0,0,pageWidth,64,'F');
+    doc.setTextColor(238,243,234);
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(15);
+    doc.text('Painel eMulti — Divergência: calculado × oficial', margin, 26);
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(10);
+    doc.setTextColor(159,192,174);
+    doc.text(equipeLabel, margin, 42);
+    doc.setFontSize(8.5);
+    doc.text('Gerado em '+new Date().toLocaleString('pt-BR'), pageWidth-margin, 26, {align:'right'});
+
+    var y = 84;
+    doc.setTextColor(21,63,53);
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(13);
+    doc.text('Calculado pelo painel × Oficial (aba Q2-26)', margin, y);
+    y += 16;
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(9);
+    doc.setTextColor(81,96,90);
+    doc.text('M1 = atendimentos por pessoa (numerador ÷ denominador). M2 = % de ações compartilhadas (numerador ÷ denominador × 100). Diferença = oficial − calculado.', margin, y);
+    y += 14;
+
+    doc.autoTable({
+      startY: y,
+      head: [['Mês','Indicador','Numerador/Denominador (calculado)','Valor (calculado)','Numerador/Denominador (oficial)','Valor (oficial)','Diferença']],
+      body: linhas,
+      theme: 'grid',
+      margin: {left:margin, right:margin, bottom:34},
+      styles: {font:'helvetica', fontSize:8.6, cellPadding:4, overflow:'linebreak', textColor:[19,36,31], lineColor:[220,228,214], lineWidth:0.5},
+      headStyles: {fillColor:[21,63,53], textColor:255, fontStyle:'bold'},
+      alternateRowStyles: {fillColor:[241,244,238]},
+      didDrawPage: function(){
+        doc.setFontSize(8);
+        doc.setTextColor(150,158,152);
+        doc.text('Página '+doc.internal.getCurrentPageInfo().pageNumber, pageWidth-margin, pageHeight-14, {align:'right'});
+      }
+    });
+
+    var arquivo = 'divergencia_oficial__'+slugifyFileName(equipeLabel)+'__'+slugifyFileName(new Date().toLocaleDateString('pt-BR'))+'.pdf';
     doc.save(arquivo);
   }
 
@@ -2328,33 +2436,50 @@
     // sparkline acima) — mostra numerador/denominador/classificação de
     // M1 e M2 e o "Desempenho quadrimestral" (síntese M1×6 + M2×4) mês a
     // mês, pra dar visibilidade à composição por trás de cada ponto do
-    // gráfico.
-    var trendHistoryRows = serieTendencia.map(function(p){
+    // gráfico. Ordem: mês mais recente primeiro (slice().reverse() —
+    // serieTendencia em si continua do mais antigo pro mais novo, ordem
+    // usada pelos gráficos de Tendência acima).
+    var serieRecenteParaAntigo = serieTendencia.slice().reverse();
+    var trendHistoryRows = serieRecenteParaAntigo.map(function(p){
       var classeM1 = classificarM1(p.m1);
       var classeM2 = classificarM2(p.m2);
       var desemp = classificarDesempenho(p.notaFinal);
       function pill(txt){ return '<span class="pill" style="background:'+(CLASS_PILL_HEX[txt]||'#7A8A82')+'">'+escapeHtml(txt)+'</span>'; }
+      // Pequeno selo "Oficial" na célula do M1/M2 quando aquele mês usou
+      // o dado da aba Q2-26 em vez do calculado pelo painel (ver
+      // aplicarOverrideOficial) — só um lembrete visual, não muda o valor.
+      function oficialTag(ehOficial){ return ehOficial ? ' <span class="pill" style="background:#3B7DDD;font-size:9.5px;">Oficial</span>' : ''; }
       return '<tr>'
         + '<td>'+escapeHtml(monthShortLabel(p.mes))+'</td>'
         + '<td>'+fmtInt(p.numeradorM1)+'</td>'
         + '<td>'+fmtInt(p.denominadorM1)+'</td>'
-        + '<td>'+(p.m1!=null ? fmtDec(p.m1,2) : '—')+'</td>'
+        + '<td>'+(p.m1!=null ? fmtDec(p.m1,2) : '—')+oficialTag(p.m1Oficial)+'</td>'
         + '<td>'+pill(classeM1)+'</td>'
         + '<td>'+fmtInt(p.numeradorM2)+'</td>'
         + '<td>'+fmtInt(p.denominadorM2)+'</td>'
-        + '<td>'+(p.m2!=null ? fmtDec(p.m2,2)+'%' : '—')+'</td>'
+        + '<td>'+(p.m2!=null ? fmtDec(p.m2,2)+'%' : '—')+oficialTag(p.m2Oficial)+'</td>'
         + '<td>'+pill(classeM2)+'</td>'
         + '<td>'+(p.notaFinal!=null ? fmtDec(p.notaFinal,2) : '—')+'</td>'
         + '<td>'+pill(desemp)+'</td>'
         + '</tr>';
     }).join('');
+    var temAlgumOficial = serieTendencia.some(function(p){ return p.m1Oficial || p.m2Oficial; });
+    var divergenciaBtnHtml = temAlgumOficial
+      ? '<button type="button" class="pdf-btn" id="btnDivergenciaOficial">'
+        + '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 15h1a1.5 1.5 0 0 0 0-3H9v5"/><path d="M13 12v5h1a2 2 0 0 0 0-5z"/><path d="M18.5 12H17v5"/><path d="M17 14.5h1.3"/></svg>'
+        + '<span>PDF de divergência</span></button>'
+      : '';
     document.getElementById('trendHistoryWrap').innerHTML =
-        '<div class="card"><h4 style="margin:0 0 4px;font-size:14.5px;font-weight:500;">Série histórica — numerador, denominador e desempenho quadrimestral</h4>'
-      + '<p class="footnote" style="margin:0 0 12px;">Um mês por linha, cada um com sua própria janela móvel de '+JANELA_MESES+' meses terminando naquele mês (mesmos pontos dos gráficos acima). "Desempenho quadrimestral" é a síntese própria M1×6 + M2×4 — ver Notas Metodológicas.</p>'
+        '<div class="card"><div class="list-card-head"><h4 style="margin:0;font-size:14.5px;font-weight:500;">Série histórica — numerador, denominador e desempenho quadrimestral</h4>'+divergenciaBtnHtml+'</div>'
+      + '<p class="footnote" style="margin:4px 0 12px;">Um mês por linha (mais recente primeiro), cada um com sua própria janela móvel de '+JANELA_MESES+' meses terminando naquele mês (mesmos pontos dos gráficos acima). "Desempenho quadrimestral" é a síntese própria M1×6 + M2×4 — ver Notas Metodológicas. O selo "Oficial" marca meses em que o valor veio da aba Q2-26 em vez do cálculo do painel.</p>'
       + '<div class="table-wrap"><table class="data-table"><thead><tr>'
       +   '<th>Mês</th><th>Numerador M1</th><th>Denominador M1</th><th>M1</th><th>Classe M1</th>'
       +   '<th>Numerador M2</th><th>Denominador M2</th><th>M2 (%)</th><th>Classe M2</th><th>Nota do desempenho</th><th>Desempenho quadrimestral</th>'
       + '</tr></thead><tbody>'+trendHistoryRows+'</tbody></table></div></div>';
+    var btnDivergencia = document.getElementById('btnDivergenciaOficial');
+    if(btnDivergencia){
+      btnDivergencia.addEventListener('click', function(){ gerarPdfDivergenciaOficial(serieTendencia); });
+    }
 
     var notesList = document.getElementById('notesList');
     if(record.notes && record.notes.length){
