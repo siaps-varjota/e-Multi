@@ -215,6 +215,21 @@
     color:#fff;white-space:nowrap;
   }
 
+  /* ---------- Horizontal pill layout for sheets/tabs ---------- */
+  .sheets-pills-container{
+    display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;align-items:center;
+  }
+  .sheet-pill{
+    display:inline-flex;align-items:center;gap:6px;
+    padding:7px 14px;border-radius:999px;font-size:12.5px;font-weight:600;
+    background:var(--surface);border:1px solid var(--line);color:var(--ink);
+    cursor:pointer;white-space:nowrap;
+    transition:all .15s ease;
+  }
+  .sheet-pill:hover{border-color:var(--header-bg);background:var(--paper);}
+  .sheet-pill.active{background:var(--header-bg);color:#fff;border-color:var(--header-bg);}
+  .sheet-pill.active:hover{background:var(--header-bg-2);}
+
   .gauge-legend{
     margin-top:10px;display:flex;flex-wrap:wrap;justify-content:center;
     gap:4px 14px;font-size:11px;color:var(--ink-soft);
