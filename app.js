@@ -1480,6 +1480,18 @@
     }
     return String(raw||"").trim() || "—";
   }
+  // Nome exato da coluna calculada de dias sem atendimento (Busca-Ativa) —
+  // usado tanto pro filtro de coluna (que agrupa em faixas, não valor a
+  // valor) quanto pro cálculo em applyFilters.
+  var DIAS_SEM_ATENDIMENTO_HEADER = "Dias sem Atendimento";
+  var FAIXAS_DIAS_SEM_ATENDIMENTO = ['31–60', '61–90', '> 90'];
+  function diasBucketLabel(raw){
+    var n = parseInt(String(raw||"").trim(), 10);
+    if(isNaN(n)) return null;
+    if(n <= 60) return '31–60';
+    if(n <= 90) return '61–90';
+    return '> 90';
+  }
   // ---------- Busca-Ativa (aba M1) ----------
   // Lista, calculada aqui mesmo, das pessoas com ATENDIMENTO individual em
   // atraso: mais de 30 dias desde a última consulta, mas ainda dentro da
@@ -1696,7 +1708,13 @@
         var matchesText = !term || tr.textContent.toLowerCase().indexOf(term) !== -1;
         var matchesCols = activeFilters.every(function(f){
           var cell = tr.children[f.colIdx];
-          return cell && f.vals.indexOf(cell.textContent.trim()) >= 0;
+          if(!cell) return false;
+          var headerName = (cached && cached.headers) ? cached.headers[f.colIdx] : '';
+          if(headerName === DIAS_SEM_ATENDIMENTO_HEADER){
+            var bucket = diasBucketLabel(cell.textContent.trim());
+            return !!bucket && f.vals.indexOf(bucket) >= 0;
+          }
+          return f.vals.indexOf(cell.textContent.trim()) >= 0;
         });
         var matchesMonth = true;
         if(selectedMonths.length && dateColIdx != null && dateColIdx >= 0){
@@ -1803,14 +1821,32 @@
           valWrap.classList.add('ms-disabled');
         } else {
           var cached = latestSheets[listName];
+          var headerName = (cached && cached.headers) ? cached.headers[colIdx] : '';
+          var isDiasCol = (headerName === DIAS_SEM_ATENDIMENTO_HEADER);
           var seen = {};
           var values = [];
           (cached ? cached.rows : []).forEach(function(r){
             var v = r[colIdx];
             v = (v===undefined||v===null) ? '' : String(v).trim();
-            if(v && !seen[v]){ seen[v] = true; values.push(v); }
+            if(!v) return;
+            if(isDiasCol){
+              // Filtro por FAIXA de dias, não valor a valor (31, 32, 33…):
+              // agrupa em "31–60", "61–90" e "> 90".
+              var bucket = diasBucketLabel(v);
+              if(bucket && !seen[bucket]){ seen[bucket] = true; values.push(bucket); }
+            } else if(!seen[v]){ seen[v] = true; values.push(v); }
           });
-          values.sort(function(a,b){ return a.localeCompare(b, 'pt-BR'); });
+          if(isDiasCol){
+            values.sort(function(a,b){
+              return FAIXAS_DIAS_SEM_ATENDIMENTO.indexOf(a) - FAIXAS_DIAS_SEM_ATENDIMENTO.indexOf(b);
+            });
+          } else if(values.length && values.every(function(v){ return v !== '' && isFinite(Number(v.replace(',', '.'))); })){
+            // Coluna só com números: ordena crescente NUMERICAMENTE, não
+            // alfabeticamente (que colocaria "10" antes de "2").
+            values.sort(function(a,b){ return Number(a.replace(',', '.')) - Number(b.replace(',', '.')); });
+          } else {
+            values.sort(function(a,b){ return a.localeCompare(b, 'pt-BR'); });
+          }
           msInst.setOptions(values.map(function(v){ return {value:v, label:v}; }));
           msInst.setSelected([]);
           valWrap.classList.remove('ms-disabled');
