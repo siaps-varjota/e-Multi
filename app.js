@@ -994,9 +994,28 @@
   // "profissional" e, dentro de cada profissional, conta quantos
   // atendimentos cada paciente (por nome) teve no período — igual à
   // lógica do protótipo "Profissionais.html", mas com dados reais em vez
-  // de mock. "4+" agrupa 4 ou mais consultas no período.
-  var PROF_COLORS = ['var(--pill-regular)','var(--pill-suficiente)','var(--pill-bom)','var(--pill-otimo)'];
-  var PROF_LABELS = ['1 consulta','2 consultas','3 consultas','4+ consultas'];
+  // de mock, renderizada com Chart.js igual ao protótipo original.
+  var PROF_LABELS = ['1 Consulta', '2 Consultas', '3 Consultas', '4+ Consultas'];
+  var profListaAtual = [];
+  var profViewMode = 'percent'; // 'percent' | 'absolute'
+  var profChartMain = null;
+  var profChartInstances = []; // donuts/barras individuais (recriados a cada render)
+
+  // Resolve as cores reais (hex) das variáveis CSS do painel — Chart.js
+  // desenha em <canvas>, que não entende "var(--x)" diretamente.
+  var PROF_COLORS_CACHE = null;
+  function getProfColors(){
+    if(!PROF_COLORS_CACHE){
+      var cs = getComputedStyle(document.documentElement);
+      PROF_COLORS_CACHE = [
+        cs.getPropertyValue('--pill-regular').trim() || '#B5474B',
+        cs.getPropertyValue('--pill-suficiente').trim() || '#C68A3D',
+        cs.getPropertyValue('--pill-bom').trim() || '#6B8F71',
+        cs.getPropertyValue('--pill-otimo').trim() || '#2F6F5E'
+      ];
+    }
+    return PROF_COLORS_CACHE;
+  }
 
   function calcularPerformanceProfissionais(wb, periodo){
     var ws = wb.Sheets[suffixedName("Atendimentos")];
@@ -1039,65 +1058,149 @@
       .sort(function(a,b){ return b.totalPacientes - a.totalPacientes; });
   }
 
-  function profSegments(p){
-    return [
-      {label:PROF_LABELS[0], value:p.c1, color:PROF_COLORS[0]},
-      {label:PROF_LABELS[1], value:p.c2, color:PROF_COLORS[1]},
-      {label:PROF_LABELS[2], value:p.c3, color:PROF_COLORS[2]},
-      {label:PROF_LABELS[3], value:p.c4, color:PROF_COLORS[3]}
-    ];
-  }
-  // Só a barra empilhada, sem legenda embutida (usada no comparativo, uma
-  // legenda só serve pra todas as linhas — ver renderPerformanceProfissionais).
-  function barOnlyHTML(segments, total){
-    var t = total || segments.reduce(function(s,x){return s+(x.value||0);},0);
-    return '<div class="stackbar">' + segments.map(function(s){
-      var pct = t>0 ? (s.value/t*100) : 0;
-      return '<div class="seg" style="width:'+pct+'%;background:'+s.color+'"></div>';
-    }).join('') + '</div>';
+  // Dados do gráfico comparativo principal, no modo 'percent' (cada barra
+  // soma 100%) ou 'absolute' (contagem real) — mesma lógica de
+  // getChartData() do protótipo original.
+  function profMainChartData(lista, mode){
+    return [0,1,2,3].map(function(i){
+      return lista.map(function(p){
+        var v = [p.c1,p.c2,p.c3,p.c4][i];
+        if(mode !== 'percent') return v;
+        var t = p.totalPacientes || 0;
+        return t ? Math.round(v/t*100) : 0;
+      });
+    });
   }
 
-  function renderPerformanceProfissionais(lista){
-    var compEl = document.getElementById('profComparativo');
-    if(compEl){
-      if(!lista.length){
-        compEl.innerHTML = '<p class="footnote">Nenhum atendimento com profissional identificado neste período.</p>';
-      } else {
-        var legendaHtml = '<div class="legend" style="margin-bottom:16px;">' + PROF_LABELS.map(function(lbl,i){
-          return '<span class="legend-item"><i style="background:'+PROF_COLORS[i]+'"></i><span class="legend-label">'+lbl+'</span></span>';
-        }).join('') + '</div>';
-        var linhasHtml = lista.map(function(p){
-          return '<div class="prof-comp-row">'
-            + '<span class="prof-comp-name" title="'+escapeHtml(p.nome)+'">'+escapeHtml(p.nome)+'</span>'
-            + '<div style="flex:1;">'+barOnlyHTML(profSegments(p), p.totalPacientes)+'</div>'
-            + '<span class="prof-comp-total">'+fmtInt(p.totalPacientes)+'</span>'
-            + '</div>';
-        }).join('');
-        compEl.innerHTML = legendaHtml + linhasHtml;
+  function renderProfMainChart(lista){
+    var canvas = document.getElementById('profStackedChart');
+    if(!canvas || typeof Chart === 'undefined') return;
+    var colors = getProfColors();
+    var chartData = profMainChartData(lista, profViewMode);
+    if(profChartMain){ profChartMain.destroy(); profChartMain = null; }
+    profChartMain = new Chart(canvas.getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: lista.map(function(p){ return p.nome; }),
+        datasets: PROF_LABELS.map(function(lbl,i){
+          return {label: lbl, data: chartData[i], backgroundColor: colors[i]};
+        })
+      },
+      options: {
+        indexAxis: 'y',
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: {
+            stacked: true,
+            max: profViewMode==='percent' ? 100 : undefined,
+            ticks: { callback: function(v){ return profViewMode==='percent' ? v+'%' : v; } }
+          },
+          y: { stacked: true }
+        },
+        plugins: {
+          tooltip: {
+            callbacks: {
+              label: function(ctx){
+                var unit = profViewMode==='percent' ? '%' : ' pacientes';
+                return ' '+ctx.dataset.label+': '+ctx.raw+unit;
+              }
+            }
+          }
+        }
       }
-    }
+    });
+  }
+
+  function setProfViewMode(mode){
+    if(profViewMode === mode) return;
+    profViewMode = mode;
+    var pillPercent = document.getElementById('profPillPercent');
+    var pillAbsolute = document.getElementById('profPillAbsolute');
+    var title = document.getElementById('profMainChartTitle');
+    if(pillPercent) pillPercent.classList.toggle('active', mode==='percent');
+    if(pillAbsolute) pillAbsolute.classList.toggle('active', mode==='absolute');
+    if(title) title.innerText = mode==='percent'
+      ? 'Comparativo Geral de Distribuição de Consultas (%)'
+      : 'Comparativo Geral de Distribuição de Consultas (Valores Absolutos)';
+    renderProfMainChart(profListaAtual);
+  }
+  (function setupProfPills(){
+    var pillPercent = document.getElementById('profPillPercent');
+    var pillAbsolute = document.getElementById('profPillAbsolute');
+    if(pillPercent) pillPercent.addEventListener('click', function(){ setProfViewMode('percent'); });
+    if(pillAbsolute) pillAbsolute.addEventListener('click', function(){ setProfViewMode('absolute'); });
+  })();
+
+  function renderPerformanceProfissionais(lista){
+    profListaAtual = lista || [];
+
+    profChartInstances.forEach(function(c){ try{ c.destroy(); }catch(e){} });
+    profChartInstances = [];
+
+    renderProfMainChart(profListaAtual);
 
     var gridEl = document.getElementById('profGrid');
     if(!gridEl) return;
-    if(!lista.length){
+    if(!profListaAtual.length){
       gridEl.innerHTML = '<p class="footnote">Nenhum atendimento com profissional identificado neste período.</p>';
       return;
     }
-    gridEl.innerHTML = lista.map(function(p){
+
+    var colors = getProfColors();
+    gridEl.innerHTML = profListaAtual.map(function(p, idx){
       var corRetorno = p.taxaRetorno==null ? 'var(--ink-soft)' : (p.taxaRetorno>=50 ? 'var(--pill-bom)' : 'var(--pill-regular)');
-      return '<div class="card prof-card">'
-        + '<div class="prof-card-head">'
+      return '<div class="card" style="margin-bottom:0;">'
+        + '<div class="prof-header">'
         +   '<div class="prof-avatar">'+escapeHtml((p.nome.trim().charAt(0)||'?').toUpperCase())+'</div>'
-        +   '<div><h4>'+escapeHtml(p.nome)+'</h4><span class="prof-sub">'+fmtInt(p.totalAtendimentos)+' atendimentos no período</span></div>'
+        +   '<div class="prof-info"><h3>'+escapeHtml(p.nome)+'</h3><span>'+fmtInt(p.totalAtendimentos)+' atendimentos no período</span></div>'
         + '</div>'
-        + '<div class="prof-kpis">'
-        +   '<div class="prof-kpi"><label>Pacientes</label><span>'+fmtInt(p.totalPacientes)+'</span></div>'
-        +   '<div class="prof-kpi"><label>Retorno</label><span style="color:'+corRetorno+';">'+(p.taxaRetorno==null?'—':fmtDec(p.taxaRetorno,0)+'%')+'</span></div>'
-        +   '<div class="prof-kpi"><label>Média/pac.</label><span>'+(p.media==null?'—':fmtDec(p.media,1))+'</span></div>'
+        + '<div class="kpi-container">'
+        +   '<div class="kpi-item"><label>Pacientes Únicos</label><span>'+fmtInt(p.totalPacientes)+'</span></div>'
+        +   '<div class="kpi-item"><label>Taxa Retorno</label><span style="color:'+corRetorno+';">'+(p.taxaRetorno==null?'—':fmtDec(p.taxaRetorno,0)+'%')+'</span></div>'
+        +   '<div class="kpi-item"><label>Média Cons/Pac</label><span>'+(p.media==null?'—':fmtDec(p.media,1))+'</span></div>'
         + '</div>'
-        + stackbar(profSegments(p), p.totalPacientes)
+        + '<div class="card-charts-layout">'
+        +   '<div class="chart-box"><canvas id="prof-donut-'+idx+'"></canvas>'
+        +     '<div class="donut-center-text"><span class="val">'+(p.taxaRetorno==null?'—':fmtDec(p.taxaRetorno,0)+'%')+'</span><span class="lbl">Retorno</span></div>'
+        +   '</div>'
+        +   '<div class="chart-box"><canvas id="prof-bar-'+idx+'"></canvas></div>'
+        + '</div>'
         + '</div>';
     }).join('');
+
+    if(typeof Chart === 'undefined') return;
+    setTimeout(function(){
+      profListaAtual.forEach(function(p, idx){
+        var recorrentes = p.c2+p.c3+p.c4;
+        var donutEl = document.getElementById('prof-donut-'+idx);
+        if(donutEl){
+          profChartInstances.push(new Chart(donutEl, {
+            type: 'doughnut',
+            data: {
+              labels: ['1 Consulta', 'Retornou (2+)'],
+              datasets: [{ data: [p.c1, recorrentes], backgroundColor: [colors[0], colors[3]], borderWidth: 0 }]
+            },
+            options: { cutout: '75%', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+          }));
+        }
+        var barEl = document.getElementById('prof-bar-'+idx);
+        if(barEl){
+          profChartInstances.push(new Chart(barEl, {
+            type: 'bar',
+            data: {
+              labels: ['1', '2', '3', '4+'],
+              datasets: [{ data: [p.c1,p.c2,p.c3,p.c4], backgroundColor: colors, borderRadius: 4 }]
+            },
+            options: {
+              responsive: true, maintainAspectRatio: false,
+              plugins: { legend: { display: false } },
+              scales: { x: { grid: { display: false } }, y: { display: false } }
+            }
+          }));
+        }
+      });
+    }, 50);
   }
 
   // ---------- Listas ----------
