@@ -1154,10 +1154,62 @@
       + body + '</div>';
   }
 
+  // Aba ativa (nome da lista) por container de listas relacionadas
+  // (listsM1/listsM2) — default é a primeira lista de cada aba.
+  var listActiveTab = {};
+  function relatedListsPillsHtml(containerId, names){
+    var active = listActiveTab[containerId] || names[0];
+    if(names.indexOf(active) < 0) active = names[0];
+    listActiveTab[containerId] = active;
+    var pills = names.map(function(name){
+      var isActive = name === active;
+      var cached = latestSheets[name];
+      var count = cached ? fmtInt(cached.rows.length) : '';
+      var bg = isActive ? '#153F35' : '#FFFFFF';
+      var border = isActive ? '#153F35' : '#D9E1D6';
+      var nameColor = isActive ? '#EEF3EA' : '#1B2E27';
+      var countColor = isActive ? '#9FC0AE' : '#8B978F';
+      return '<button type="button" class="related-list-pill" data-list-pill="'+escapeHtml(name)+'" data-container="'+escapeHtml(containerId)+'"'
+        + ' style="display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:999px;border:1px solid '+border+';background:'+bg+';cursor:pointer;font-family:inherit;white-space:nowrap;">'
+        + '<span style="font-size:13px;font-weight:600;color:'+nameColor+';">'+escapeHtml(displayListName(name))+'</span>'
+        + (count ? '<span style="font-size:12.5px;color:'+countColor+';">'+count+'</span>' : '')
+        + '</button>';
+    }).join('');
+    return '<div class="related-lists-bar" style="margin-bottom:14px;">'
+      + '<div style="font-size:11px;font-weight:700;letter-spacing:0.06em;color:#5C6B62;text-transform:uppercase;margin-bottom:8px;">Listas relacionadas</div>'
+      + '<div style="display:flex;flex-wrap:wrap;gap:8px;">'+pills+'</div>'
+      + '</div>';
+  }
   function renderListsSection(containerId, names){
     var el = document.getElementById(containerId);
     if(!el) return;
-    el.innerHTML = names.map(renderListCard).join('');
+    el.innerHTML = relatedListsPillsHtml(containerId, names) + names.map(renderListCard).join('');
+
+    // Só o card da lista ativa (pill selecionada) fica visível — os
+    // outros continuam no DOM (com seus próprios filtros já montados),
+    // só escondidos, pra alternar de lista sem perder filtro/estado.
+    function aplicarAbaAtiva(){
+      var active = listActiveTab[containerId];
+      el.querySelectorAll('.list-card').forEach(function(card){
+        card.style.display = (card.getAttribute('data-list-card') === active) ? '' : 'none';
+      });
+      el.querySelectorAll('[data-list-pill]').forEach(function(btn){
+        var isActive = btn.getAttribute('data-list-pill') === active;
+        var nameEl = btn.querySelector('span:first-child');
+        var countEl = btn.querySelector('span:last-child');
+        btn.style.background = isActive ? '#153F35' : '#FFFFFF';
+        btn.style.borderColor = isActive ? '#153F35' : '#D9E1D6';
+        if(nameEl) nameEl.style.color = isActive ? '#EEF3EA' : '#1B2E27';
+        if(countEl && countEl !== nameEl) countEl.style.color = isActive ? '#9FC0AE' : '#8B978F';
+      });
+    }
+    aplicarAbaAtiva();
+    el.querySelectorAll('[data-list-pill]').forEach(function(btn){
+      btn.addEventListener('click', function(){
+        listActiveTab[containerId] = btn.getAttribute('data-list-pill');
+        aplicarAbaAtiva();
+      });
+    });
 
     function applyFilters(card){
       var listName = card.getAttribute('data-list-card');
