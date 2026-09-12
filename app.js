@@ -3389,24 +3389,23 @@
   refreshBtn.addEventListener('click', fetchAndLoad);
 
   function renderEquipeSwitcher(){
+    var TODAS_KEY = 'todas';
     var equipeMs = createMultiSelect(document.getElementById('equipeMs'), {
       placeholder: 'Selecione',
-      multi: true,
+      multi: false,
       search: false,
-      showTags: true,
       onChange: function(keys){
-        if(keys.length===0){
-          // sempre precisa ficar pelo menos 1 equipe marcada
-          equipeMs.setSelected(currentEquipes.map(function(e){ return e.key; }));
-          return;
-        }
-        currentEquipes = EQUIPES.filter(function(eq){ return keys.indexOf(eq.key)>=0; });
+        currentEquipes = keys[0] === TODAS_KEY ? EQUIPES.slice()
+          : EQUIPES.filter(function(eq){ return eq.key === keys[0]; });
         document.getElementById('statusState').style.display = '';
         fetchAndLoad();
       }
     });
-    equipeMs.setOptions(EQUIPES.map(function(eq){ return {value: eq.key, label: eq.label}; }));
-    equipeMs.setSelected(currentEquipes.map(function(e){ return e.key; }));
+    equipeMs.setOptions(
+      EQUIPES.map(function(eq){ return {value: eq.key, label: eq.label}; })
+        .concat([{value: TODAS_KEY, label: 'Todas'}])
+    );
+    equipeMs.setSelected([currentEquipes.length > 1 ? TODAS_KEY : currentEquipes[0].key]);
   }
   renderEquipeSwitcher();
 
