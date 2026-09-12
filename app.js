@@ -2735,6 +2735,12 @@
         p.classList.toggle('active', p.id === 'tab'+target.charAt(0).toUpperCase()+target.slice(1));
       });
       document.getElementById('filterBar').classList.toggle('hidden', !FILTER_BAR_TABS[target]);
+      // Gráficos Chart.js criados enquanto a aba estava escondida (display:none)
+      // ficam com tamanho zero e não se redesenham sozinhos ao trocar de aba —
+      // re-renderiza na hora em que o painel de Desempenho Profissional fica visível.
+      if(target === 'profissionais'){
+        renderPerformanceProfissionais(profListaAtual);
+      }
     });
   });
 
