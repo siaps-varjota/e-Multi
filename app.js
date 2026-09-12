@@ -1025,20 +1025,35 @@
     var iNome = colIndex(header, "nome");
     var iProf = colIndex(header, "profissional");
     if(iProf < 0) return [];
+    // Com 2+ equipes selecionadas ao mesmo tempo, um profissional que
+    // atende em ambas apareceria com os atendimentos das duas somados
+    // numa linha só (contagem de consultas por paciente ficaria errada,
+    // misturando pacientes de equipes diferentes). Só nesse caso,
+    // desambigua agrupando por profissional+equipe (rótulo com sufixo).
+    var precisaSepararPorEquipe = currentEquipes.length > 1;
+    var iEquipe = precisaSepararPorEquipe ? equipeColIndex(header) : -1;
 
-    var porProf = {}; // profissional -> {nomeMaiusculo: contagem}
+    var porProf = {}; // "profissional[ (Equipe)]" -> {nomeMaiusculo: contagem}
     rows.slice(1).forEach(function(r){
       var nome = String(r[iNome]||"").trim();
       var prof = String(r[iProf]||"").trim();
       if(!nome || !prof) return;
       if(!withinPeriod(parseBRDate(r[iData]), periodo.inicio, periodo.fim)) return;
-      if(!porProf[prof]) porProf[prof] = {};
+      var chaveProf = prof;
+      if(precisaSepararPorEquipe && iEquipe >= 0){
+        var valorEquipe = normalizeText(r[iEquipe]);
+        var equipeDaLinha = EQUIPES.filter(function(eq){
+          return valorEquipe.indexOf(normalizeText(eq.matchKeyword)) !== -1;
+        })[0];
+        if(equipeDaLinha) chaveProf = prof + ' (' + equipeDaLinha.suffix + ')';
+      }
+      if(!porProf[chaveProf]) porProf[chaveProf] = {};
       var chave = nome.toUpperCase();
-      porProf[prof][chave] = (porProf[prof][chave]||0) + 1;
+      porProf[chaveProf][chave] = (porProf[chaveProf][chave]||0) + 1;
     });
 
-    return Object.keys(porProf).map(function(prof){
-      var pacientes = porProf[prof];
+    return Object.keys(porProf).map(function(chaveProf){
+      var pacientes = porProf[chaveProf];
       var c1=0, c2=0, c3=0, c4=0, totalAtend=0;
       Object.keys(pacientes).forEach(function(k){
         var n = pacientes[k];
@@ -1048,7 +1063,7 @@
       var totalPacientes = Object.keys(pacientes).length;
       var recorrentes = c2+c3+c4;
       return {
-        nome: prof, c1:c1, c2:c2, c3:c3, c4:c4,
+        nome: chaveProf, c1:c1, c2:c2, c3:c3, c4:c4,
         totalPacientes: totalPacientes,
         totalAtendimentos: totalAtend,
         taxaRetorno: totalPacientes ? (recorrentes/totalPacientes*100) : null,
