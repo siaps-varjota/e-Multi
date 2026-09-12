@@ -10,6 +10,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -133,15 +134,22 @@
         <p>Retorno de pacientes por profissional (Lista de Atendimentos), na janela selecionada acima.</p>
       </div>
     </div>
-    <div class="card" style="margin-bottom:20px;">
-      <div class="comp-card-head" style="margin-bottom:6px;">
-        <h4 style="margin:0;">Comparativo entre profissionais</h4>
+
+    <div class="card">
+      <div class="card-header">
+        <div class="card-title" id="profMainChartTitle">Comparativo Geral de Distribuição de Consultas (%)</div>
+        <div class="pill-group">
+          <button type="button" class="pill-btn active" id="profPillPercent">Percentual (100%)</button>
+          <button type="button" class="pill-btn" id="profPillAbsolute">Valores absolutos</button>
+        </div>
       </div>
-      <p class="footnote" style="margin:0 0 14px;">Distribuição de pacientes por nº de consultas no período, por profissional.</p>
-      <div id="profComparativo"></div>
+      <div style="height:280px;position:relative;">
+        <canvas id="profStackedChart"></canvas>
+      </div>
     </div>
+
     <p class="section-title">Profissionais</p>
-    <div class="prof-grid" id="profGrid"></div>
+    <div class="grid-professionals" id="profGrid"></div>
   </div>
 
   <div id="tabNotas" class="tab-panel">
