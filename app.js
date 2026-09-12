@@ -669,6 +669,70 @@
       .then(function(csvText){ officialOverrides = parseOfficialSheetCsv(csvText); })
       .catch(function(){ /* mantém officialOverrides como estava */ });
   }
+
+  // ---------- Cadastro de Profissionais (aba "PROFISSIONAIS") ----------
+  // Fonte de verdade de QUEM deve aparecer na aba Desempenho Profissional:
+  // cada linha desta aba (na mesma planilha de origem) traz o nome do
+  // profissional, a equipe a que pertence e a categoria profissional
+  // (CBO/função). Diferente das abas de dados brutos (BASE_SHEET_NAMES),
+  // esta é uma aba de CADASTRO, sem data/período — é buscada à parte,
+  // igual à aba oficial (ver fetchOfficialOverridesSafe acima), e nunca
+  // trava o carregamento do painel se estiver ausente, vazia ou com
+  // colunas de nome diferente (ver profRosterColIndex).
+  var PROFISSIONAIS_SHEET_NAME = "PROFISSIONAIS";
+  // lista de {nome, equipeKey, categoria} — uma entrada por
+  // profissional+equipe cadastrados na aba.
+  var profissionaisRoster = [];
+  // Acha a coluna certa tentando primeiro nomes exatos (mesma convenção
+  // das outras abas: minúsculo, sem acento, "snake_case") e, não
+  // achando, cai pra uma busca por palavra-chave no cabeçalho — protege
+  // contra a aba PROFISSIONAIS usar um nome de coluna um pouco diferente
+  // do esperado.
+  function profRosterColIndex(header, candidatos, fallbackKeyword){
+    for(var i=0;i<candidatos.length;i++){
+      var idx = colIndex(header, candidatos[i]);
+      if(idx >= 0) return idx;
+    }
+    if(fallbackKeyword){
+      for(var j=0;j<header.length;j++){
+        if(normalizeText(header[j]).indexOf(fallbackKeyword) !== -1) return j;
+      }
+    }
+    return -1;
+  }
+  function parseProfissionaisCsv(csvText){
+    var rows = parseCsv(csvText);
+    if(!rows.length) return [];
+    var header = rows[0];
+    var iNome = profRosterColIndex(header, ["profissional","nome_profissional","nome"], "PROFISSIONAL");
+    var iEquipe = profRosterColIndex(header, ["equipe_unidade","equipe"], "EQUIPE");
+    var iCategoria = profRosterColIndex(header, ["categoria_profissional","categoria_prof","categoria","cbo"], "CATEGORIA");
+    if(iNome < 0) return [];
+    var lista = [];
+    rows.slice(1).forEach(function(r){
+      var nome = String(r[iNome]||"").trim();
+      if(!nome) return;
+      var equipeVal = iEquipe>=0 ? normalizeText(r[iEquipe]) : "";
+      var equipeMatch = EQUIPES.filter(function(eq){ return equipeVal.indexOf(normalizeText(eq.matchKeyword)) !== -1; })[0];
+      lista.push({
+        nome: nome,
+        equipeKey: equipeMatch ? equipeMatch.key : null,
+        categoria: iCategoria>=0 ? String(r[iCategoria]||"").trim() : ""
+      });
+    });
+    return lista;
+  }
+  // Nunca rejeita a promise — sem a aba PROFISSIONAIS (ou com erro na
+  // busca), profissionaisRoster fica como estava (ou vazio, na primeira
+  // vez) e calcularPerformanceProfissionais cai no comportamento antigo
+  // (lista derivada da aba Atendimentos — ver mais abaixo).
+  function fetchProfissionaisSafe(){
+    return fetch(sheetCsvUrl(PROFISSIONAIS_SHEET_NAME), {cache:'no-store'})
+      .then(function(res){ if(!res.ok) throw new Error('HTTP ' + res.status); return res.text(); })
+      .then(function(csvText){ profissionaisRoster = parseProfissionaisCsv(csvText); })
+      .catch(function(){ /* mantém profissionaisRoster como estava */ });
+  }
+
   // Aplica (in-place) o override oficial em `data` (o objeto retornado por
   // calcularIndicadoresDoPeriodo) pro mês/ano informados, considerando as
   // equipes atualmente selecionadas (currentEquipes). Só substitui M1 (ou
@@ -1024,36 +1088,80 @@
     var iData = colIndex(header, "data_hora");
     var iNome = colIndex(header, "nome");
     var iProf = colIndex(header, "profissional");
-    if(iProf < 0) return [];
     // Com 2+ equipes selecionadas ao mesmo tempo, um profissional que
     // atende em ambas apareceria com os atendimentos das duas somados
     // numa linha só (contagem de consultas por paciente ficaria errada,
     // misturando pacientes de equipes diferentes). Só nesse caso,
-    // desambigua agrupando por profissional+equipe (rótulo com sufixo).
+    // desambigua agrupando por profissional+equipe.
     var precisaSepararPorEquipe = currentEquipes.length > 1;
-    var iEquipe = precisaSepararPorEquipe ? equipeColIndex(header) : -1;
+    var iEquipe = (iProf >= 0 && precisaSepararPorEquipe) ? equipeColIndex(header) : -1;
 
-    var porProf = {}; // "profissional[ (Equipe)]" -> {nomeMaiusculo: contagem}
-    rows.slice(1).forEach(function(r){
-      var nome = String(r[iNome]||"").trim();
-      var prof = String(r[iProf]||"").trim();
-      if(!nome || !prof) return;
-      if(!withinPeriod(parseBRDate(r[iData]), periodo.inicio, periodo.fim)) return;
-      var chaveProf = prof;
-      if(precisaSepararPorEquipe && iEquipe >= 0){
-        var valorEquipe = normalizeText(r[iEquipe]);
-        var equipeDaLinha = EQUIPES.filter(function(eq){
-          return valorEquipe.indexOf(normalizeText(eq.matchKeyword)) !== -1;
-        })[0];
-        if(equipeDaLinha) chaveProf = prof + ' (' + equipeDaLinha.suffix + ')';
-      }
-      if(!porProf[chaveProf]) porProf[chaveProf] = {};
-      var chave = nome.toUpperCase();
-      porProf[chaveProf][chave] = (porProf[chaveProf][chave]||0) + 1;
+    // Contagem de atendimentos por profissional (chave INTERNA — nome
+    // normalizado [+ equipe], nunca o rótulo exibido), cada uma com
+    // {pacienteMaiusculo: contagem}. displayNamePorChave guarda o nome
+    // "bonito" (como veio na aba Atendimentos) pra usar só no fallback
+    // (ver abaixo), já que o roster da aba PROFISSIONAIS tem sua própria
+    // grafia de nome, preferida quando disponível.
+    var porProfInterno = {};
+    var displayNamePorChaveInterna = {};
+    if(iProf >= 0){
+      rows.slice(1).forEach(function(r){
+        var nome = String(r[iNome]||"").trim();
+        var prof = String(r[iProf]||"").trim();
+        if(!nome || !prof) return;
+        if(!withinPeriod(parseBRDate(r[iData]), periodo.inicio, periodo.fim)) return;
+        var equipeDaLinha = null;
+        if(precisaSepararPorEquipe && iEquipe >= 0){
+          var valorEquipe = normalizeText(r[iEquipe]);
+          equipeDaLinha = EQUIPES.filter(function(eq){
+            return valorEquipe.indexOf(normalizeText(eq.matchKeyword)) !== -1;
+          })[0] || null;
+        }
+        var chaveInterna = normalizeText(prof) + (equipeDaLinha ? '|' + equipeDaLinha.key : '');
+        if(!porProfInterno[chaveInterna]) porProfInterno[chaveInterna] = {};
+        var chavePac = nome.toUpperCase();
+        porProfInterno[chaveInterna][chavePac] = (porProfInterno[chaveInterna][chavePac]||0) + 1;
+        if(!displayNamePorChaveInterna[chaveInterna]){
+          displayNamePorChaveInterna[chaveInterna] = equipeDaLinha ? (prof + ' (' + equipeDaLinha.suffix + ')') : prof;
+        }
+      });
+    }
+
+    // A aba "PROFISSIONAIS" é quem decide QUEM aparece: só entram os
+    // profissionais cadastrados em alguma das equipes selecionadas —
+    // mesmo os que não tiveram nenhum atendimento no período (aparecem
+    // com contagens zeradas, já que o objetivo aqui é mostrar o quadro
+    // completo de profissionais da equipe, não só quem atendeu).
+    var rosterFiltrado = profissionaisRoster.filter(function(p){
+      return p.equipeKey && currentEquipes.some(function(eq){ return eq.key === p.equipeKey; });
     });
 
-    return Object.keys(porProf).map(function(chaveProf){
-      var pacientes = porProf[chaveProf];
+    var listaBase;
+    if(rosterFiltrado.length){
+      listaBase = rosterFiltrado.map(function(p){
+        var equipeInfo = precisaSepararPorEquipe ? EQUIPES.filter(function(e){ return e.key === p.equipeKey; })[0] : null;
+        var nomeExibicao = equipeInfo ? (p.nome + ' (' + equipeInfo.suffix + ')') : p.nome;
+        var chaveInterna = normalizeText(p.nome) + (precisaSepararPorEquipe ? '|' + p.equipeKey : '');
+        return {
+          nome: nomeExibicao,
+          categoria: p.categoria,
+          pacientes: porProfInterno[chaveInterna] || {}
+        };
+      });
+    } else if(iProf >= 0){
+      // Fallback (aba PROFISSIONAIS ainda não carregou, está vazia ou
+      // nenhuma linha bate com a(s) equipe(s) selecionada(s)): mantém o
+      // comportamento antigo, derivando a lista direto de quem aparece
+      // em Atendimentos, sem categoria.
+      listaBase = Object.keys(porProfInterno).map(function(chaveInterna){
+        return {nome: displayNamePorChaveInterna[chaveInterna], categoria: '', pacientes: porProfInterno[chaveInterna]};
+      });
+    } else {
+      listaBase = [];
+    }
+
+    var comContagens = listaBase.map(function(item){
+      var pacientes = item.pacientes;
       var c1=0, c2=0, c3=0, c4=0, totalAtend=0;
       Object.keys(pacientes).forEach(function(k){
         var n = pacientes[k];
@@ -1063,14 +1171,19 @@
       var totalPacientes = Object.keys(pacientes).length;
       var recorrentes = c2+c3+c4;
       return {
-        nome: chaveProf, c1:c1, c2:c2, c3:c3, c4:c4,
+        nome: item.nome, categoria: item.categoria, c1:c1, c2:c2, c3:c3, c4:c4,
         totalPacientes: totalPacientes,
         totalAtendimentos: totalAtend,
         taxaRetorno: totalPacientes ? (recorrentes/totalPacientes*100) : null,
         media: totalPacientes ? (totalAtend/totalPacientes) : null
       };
-    }).filter(function(p){ return p.totalPacientes > 0; })
-      .sort(function(a,b){ return b.totalPacientes - a.totalPacientes; });
+    });
+    // No fallback (sem roster), continua escondendo quem não teve
+    // nenhum atendimento — não faz sentido listar um "profissional"
+    // sem nenhuma linha em Atendimentos nesse caso. Com roster, todo
+    // mundo cadastrado na equipe aparece, mesmo com 0 atendimentos.
+    var listaFinal = rosterFiltrado.length ? comContagens : comContagens.filter(function(p){ return p.totalPacientes > 0; });
+    return listaFinal.sort(function(a,b){ return b.totalPacientes - a.totalPacientes; });
   }
 
   // Dados do gráfico comparativo principal, no modo 'percent' (cada barra
@@ -1158,7 +1271,7 @@
     var gridEl = document.getElementById('profGrid');
     if(!gridEl) return;
     if(!profListaAtual.length){
-      gridEl.innerHTML = '<p class="footnote">Nenhum atendimento com profissional identificado neste período.</p>';
+      gridEl.innerHTML = '<p class="footnote">Nenhum profissional cadastrado (aba "PROFISSIONAIS") para esta equipe, e nenhum atendimento com profissional identificado neste período.</p>';
       return;
     }
 
@@ -1168,7 +1281,7 @@
       return '<div class="card" style="margin-bottom:0;">'
         + '<div class="prof-header">'
         +   '<div class="prof-avatar">'+escapeHtml((p.nome.trim().charAt(0)||'?').toUpperCase())+'</div>'
-        +   '<div class="prof-info"><h3>'+escapeHtml(p.nome)+'</h3><span>'+fmtInt(p.totalAtendimentos)+' atendimentos no período</span></div>'
+        +   '<div class="prof-info"><h3>'+escapeHtml(p.nome)+'</h3><span>'+(p.categoria ? escapeHtml(p.categoria)+' · ' : '')+fmtInt(p.totalAtendimentos)+' atendimentos no período</span></div>'
         + '</div>'
         + '<div class="kpi-container">'
         +   '<div class="kpi-item"><label>Pacientes Únicos</label><span>'+fmtInt(p.totalPacientes)+'</span></div>'
@@ -3213,7 +3326,7 @@
     fetchStatusEl.textContent = 'Buscando dados…';
     fetchStatusEl.className = 'fetch-status';
 
-    Promise.all([fetchAllSheets(), fetchOfficialOverridesSafe()])
+    Promise.all([fetchAllSheets(), fetchOfficialOverridesSafe(), fetchProfissionaisSafe()])
       .then(function(arr){
         var results = arr[0];
         var faltando = results.filter(function(r){ return !r.ok; });
