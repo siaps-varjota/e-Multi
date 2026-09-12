@@ -68,6 +68,28 @@
     for(var i=0; i<4; i++){ meses.push(new Date(ano, qIndex*4+i, 1)); }
     return meses;
   }
+  // Só os meses do quadrimestre que já terminaram (mês cheio, fim do mês
+  // <= hoje) — usado pra "Meta do quadrimestre" e pra Visão geral não
+  // diluir a média do quadrimestre com meses futuros que ainda não têm
+  // nenhum atendimento/atividade real (o que puxaria o resultado pra
+  // baixo artificialmente). O ritmo médio desses meses já decorridos é
+  // usado como PROJEÇÃO pros meses que faltam (ver mediaDeMeses e
+  // aplicarMesReferencia): matematicamente, preencher os meses futuros
+  // com a própria média dos meses decorridos dá o mesmo resultado que
+  // simplesmente tirar a média só dos meses decorridos — por isso o
+  // cálculo abaixo não recalcula nada pros meses futuros, só os exclui.
+  // Se o quadrimestre acabou de começar (nenhum mês ainda fechou), usa
+  // ao menos o 1º mês (mesmo em andamento) pra não ficar sem nenhum
+  // dado.
+  function mesesElapsedDoQuadrimestre(ano, qIndex){
+    var meses = mesesDoQuadrimestre(ano, qIndex);
+    var hoje = new Date();
+    var elapsed = meses.filter(function(m){
+      var fimMes = new Date(m.getFullYear(), m.getMonth()+1, 0, 23,59,59,999);
+      return fimMes <= hoje;
+    });
+    return elapsed.length ? elapsed : meses.slice(0,1);
+  }
   // Período de um único mês (do dia 1 ao último dia do mesmo mês).
   function periodoMesUnico(d){
     var inicio = new Date(d.getFullYear(), d.getMonth(), 1, 0,0,0,0);
@@ -249,7 +271,7 @@
   // daquele mês isolado, sem janela, usados apenas pra somar contagens de
   // contexto — atendimentos, participações etc. — e montar a lista de
   // "Pessoas atendidas" sem contar o mesmo atendimento mais de uma vez).
-  function mediaDeMeses(resultadosMensais, resultadosJanela){
+  function mediaDeMeses(resultadosMensais, resultadosJanela, mesesProjecaoLabel){
     function media(campo){
       var vals = resultadosJanela.map(function(r){ return r.data[campo]; }).filter(function(v){ return v!=null; });
       if(!vals.length) return null;
@@ -333,7 +355,16 @@
         pontosM1: pontosM1Pesados,
         pontosM2: pontosM2Pesados,
         notaFinal: notaFinal,
-        desempenho: desempenho
+        desempenho: desempenho,
+        // Preenchido só quando a média sai do quadrimestre inteiro (não
+        // de uma seleção manual de meses) E nem todos os 4 meses do
+        // quadrimestre já terminaram — sinaliza que os meses que faltam
+        // estão sendo projetados pelo ritmo médio dos meses já
+        // decorridos (ver mesesElapsedDoQuadrimestre e
+        // aplicarMesReferencia). null = média "fechada" normal, sem
+        // projeção (seleção manual de meses, ou quadrimestre já
+        // encerrado).
+        mesesProjecaoLabel: mesesProjecaoLabel || null
       },
       notes: NOTAS_METODOLOGICAS,
       pessoasAtendidas: {headers: ["Nome","Atendimentos","Participantes Ativ. Coletiva","Total"], rows: pessoasAtendidasRows}
@@ -2533,15 +2564,22 @@
   }
 
   // Bloco completo de meta do quadrimestre para um indicador (M1 ou M2):
-  // cabeçalho com a base de cálculo + selo "Preliminar" (enquanto o
-  // quadrimestre ainda não terminou) e os cards de cada faixa-alvo.
-  function metaQuadrimestreHTML(titulo, base, baseLabel, cardsCfg, preliminar){
+  // cabeçalho com a base de cálculo + selo "Preliminar"/"Projeção"
+  // (enquanto o quadrimestre ainda não terminou) e os cards de cada
+  // faixa-alvo. projecaoLabel (opcional): quando a média usada é uma
+  // projeção baseada só nos meses já decorridos (ver
+  // mesesElapsedDoQuadrimestre), mostra "Projeção (base: <meses>)" em
+  // vez do "Preliminar" genérico.
+  function metaQuadrimestreHTML(titulo, base, baseLabel, cardsCfg, preliminar, projecaoLabel){
     var cardsHtml = cardsCfg.map(metaCardHTML).join('');
+    var selo = projecaoLabel
+      ? '<span class="pill-preliminar" title="Meses ainda sem dado real são projetados pelo ritmo de '+escapeHtml(projecaoLabel)+'"><i></i>Projeção (base: '+escapeHtml(projecaoLabel)+')</span>'
+      : (preliminar ? '<span class="pill-preliminar"><i></i>Preliminar</span>' : '');
     return '<div class="meta-quad-wrap">'
       + '<div class="meta-quad-head">'
       +   '<span class="meta-icon">'+METAS_ICON_SVG+'</span>'
       +   '<div class="meta-quad-titles"><h3>'+titulo+'</h3><p>de <b>'+fmtInt(base)+'</b> '+baseLabel+'</p></div>'
-      +   (preliminar ? '<span class="pill-preliminar"><i></i>Preliminar</span>' : '')
+      +   selo
       + '</div>'
       + '<div class="meta-cards">'+cardsHtml+'</div>'
       + '</div>';
@@ -2556,7 +2594,7 @@
   // abas M1/M2 (ver mm-comp-col). Mostra só o essencial: alvo de cada
   // faixa (Bom/Ótimo) e quanto falta, sem os detalhes de ritmo médio
   // (que só aparecem no bloco completo da Visão geral).
-  function metaQuadrimestreMiniHTML(base, baseLabel, cardsCfg, preliminar){
+  function metaQuadrimestreMiniHTML(base, baseLabel, cardsCfg, preliminar, projecaoLabel){
     // Cada faixa (Bom/Ótimo) agora é uma "caixa" própria — ponto colorido +
     // rótulo/alvo à esquerda, badge de status (faltam X / meta atingida) à
     // direita — no modelo das imagens de referência.
@@ -2591,7 +2629,9 @@
     }).join('');
     return '<div class="card comp-card meta-mini-card">'
       + '<div class="meta-mini-head"><span class="meta-mini-head-icon">'+METAS_ICON_SVG+'</span>'
-      +   '<h4>Meta do quadrimestre'+(preliminar ? ' <span class="pill-preliminar-mini">Preliminar</span>' : '')+'</h4></div>'
+      +   '<h4>Meta do quadrimestre'+(projecaoLabel
+            ? ' <span class="pill-preliminar-mini" title="Meses ainda sem dado real são projetados pelo ritmo de '+escapeHtml(projecaoLabel)+'">Projeção</span>'
+            : (preliminar ? ' <span class="pill-preliminar-mini">Preliminar</span>' : ''))+'</h4></div>'
       + '<div class="meta-mini-rows">'+rows+'</div>'
       + '</div>';
   }
@@ -2981,8 +3021,8 @@
       'atendimentos (retornos) de pessoas que foram atendidas nos últimos 4 meses');
     var metaM2 = calcularMetasQuadrimestre(numM2Gauge, denM2Gauge, M2_META_THRESHOLDS, 'ações');
     document.getElementById('metaQuadRow').innerHTML =
-        metaQuadrimestreHTML('Meta do quadrimestre — M1', denM1Gauge, 'pessoas atendidas', metaM1.cards, metaM1.preliminar)
-      + metaQuadrimestreHTML('Meta do quadrimestre — M2', denM2Gauge, 'ações realizadas', metaM2.cards, metaM2.preliminar);
+        metaQuadrimestreHTML('Meta do quadrimestre — M1', denM1Gauge, 'pessoas atendidas', metaM1.cards, metaM1.preliminar, d.mesesProjecaoLabel)
+      + metaQuadrimestreHTML('Meta do quadrimestre — M2', denM2Gauge, 'ações realizadas', metaM2.cards, metaM2.preliminar, d.mesesProjecaoLabel);
 
     // ---- Aba M1: layout de 3 colunas (gauge + evolução | composição |
     // meta), igual ao modelo de referência, + leitura textual + listas ----
@@ -2994,7 +3034,7 @@
         '<div class="card comp-card">'+compCardHeaderHTML('Composição do numerador', numM1Gauge)+numM1Bar+'</div>'
       + '<div class="card comp-card">'+compCardHeaderHTML('Denominador do M1', denM1Gauge)+denM1Bar+'</div>';
     document.getElementById('sideRowM1').innerHTML =
-      metaQuadrimestreMiniHTML(denM1Gauge, 'pessoas atendidas', metaM1.cards, metaM1.preliminar);
+      metaQuadrimestreMiniHTML(denM1Gauge, 'pessoas atendidas', metaM1.cards, metaM1.preliminar, d.mesesProjecaoLabel);
     document.getElementById('readingM1').innerHTML =
       ipReadingHTML('Leitura do M1', d.m1, d.classificacaoM1, quadAnterior.m1, 2, '', CLASS_BANDS_M1, 'atendimentos por pessoa');
     renderListsSection('listsM1', m1ListNames());
@@ -3008,7 +3048,7 @@
         '<div class="card comp-card">'+compCardHeaderHTML('Composição do numerador', numM2Gauge)+numM2Bar+'</div>'
       + '<div class="card comp-card">'+compCardHeaderHTML('Denominador do M2', denM2Gauge)+denM2Bar+'</div>';
     document.getElementById('sideRowM2').innerHTML =
-      metaQuadrimestreMiniHTML(denM2Gauge, 'ações realizadas', metaM2.cards, metaM2.preliminar);
+      metaQuadrimestreMiniHTML(denM2Gauge, 'ações realizadas', metaM2.cards, metaM2.preliminar, d.mesesProjecaoLabel);
     document.getElementById('readingM2').innerHTML =
       ipReadingHTML('Leitura do M2', d.m2, d.classificacaoM2, quadAnterior.m2, 2, '%', CLASS_BANDS_M2, 'de ações compartilhadas');
     renderListsSection('listsM2', m2ListNames());
@@ -3243,7 +3283,14 @@
         fim: periodoMesUnico(refMonthDates[refMonthDates.length-1]).fim
       };
     } else {
-      // Nenhum mês escolhido: média dos 4 meses do quadrimestre selecionado.
+      // Nenhum mês escolhido: média dos meses do quadrimestre selecionado
+      // que JÁ TERMINARAM (mesesElapsedDoQuadrimestre) — os meses futuros
+      // (ainda sem nenhum atendimento/atividade real na planilha) NÃO
+      // entram na média, pra não diluir o resultado com dado inexistente.
+      // Isso equivale, na prática, a projetar os meses que faltam pelo
+      // ritmo médio dos meses já decorridos (preencher um mês futuro com
+      // a própria média dos já decorridos não muda essa média — só
+      // filtrar já dá o mesmo resultado, sem precisar simular nada).
       // O M1/M2 de CADA mês usado na média já é o valor com a janela móvel
       // de JANELA_MESES meses terminando naquele mês (mesma regra oficial
       // usada na seleção de mês individual e no gráfico de tendência) —
@@ -3252,13 +3299,17 @@
       // somar contagens de contexto e montar "Pessoas atendidas" sem
       // sobrepor dados de meses vizinhos).
       var meses = mesesDoQuadrimestre(quadSelecionado.ano, quadSelecionado.qIndex);
-      var resultadosMensais = meses.map(function(m){
+      var mesesUsados = mesesElapsedDoQuadrimestre(quadSelecionado.ano, quadSelecionado.qIndex);
+      var mesesProjecaoLabel = mesesUsados.length < meses.length
+        ? mesesUsados.map(monthShortLabel).join('+')
+        : null;
+      var resultadosMensais = mesesUsados.map(function(m){
         return calcularIndicadoresDoPeriodo(latestWb, periodoMesUnico(m));
       });
-      var resultadosJanela = meses.map(function(m){
+      var resultadosJanela = mesesUsados.map(function(m){
         return calcularJanelaComOverride(latestWb, m);
       });
-      extracted = mediaDeMeses(resultadosMensais, resultadosJanela);
+      extracted = mediaDeMeses(resultadosMensais, resultadosJanela, mesesProjecaoLabel);
       periodo = {
         inicio: fmtBRDate(periodoMesUnico(meses[0]).inicio),
         fim: fmtBRDate(periodoMesUnico(meses[3]).fim)
