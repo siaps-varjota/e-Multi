@@ -33,6 +33,7 @@
   <button class="tab" data-tab="m1">M1 - Média de Atendimentos</button>
   <button class="tab" data-tab="m2">M2 - Ações compartilhadas</button>
   <button class="tab" data-tab="tendencia">Tendência</button>
+  <button class="tab" data-tab="profissionais">Desempenho Profissional</button>
   <button class="tab" data-tab="notas">Notas metodológicas</button>
   <button class="refresh-pill" id="refreshBtn">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 12a9 9 0 1 1-2.6-6.36M21 4v5h-5"/></svg>
@@ -122,6 +123,25 @@
       <div class="history-list" id="historyList"></div>
       <p class="fetch-status" id="fetchStatus"></p>
     </div>
+  </div>
+
+  <div id="tabProfissionais" class="tab-panel">
+    <div class="ip-header">
+      <div class="ip-header-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="8.5" cy="8" r="3"/><path d="M2.5 19c0-3.3 2.7-5.5 6-5.5s6 2.2 6 5.5" stroke-linecap="round"/><circle cx="17" cy="9" r="2.4"/><path d="M15.3 13.6c2.6.3 4.7 2.3 4.7 5.4" stroke-linecap="round"/></svg></div>
+      <div class="ip-header-text">
+        <h2>Desempenho Profissional</h2>
+        <p>Retorno de pacientes por profissional (Lista de Atendimentos), na janela selecionada acima.</p>
+      </div>
+    </div>
+    <div class="card" style="margin-bottom:20px;">
+      <div class="comp-card-head" style="margin-bottom:6px;">
+        <h4 style="margin:0;">Comparativo entre profissionais</h4>
+      </div>
+      <p class="footnote" style="margin:0 0 14px;">Distribuição de pacientes por nº de consultas no período, por profissional.</p>
+      <div id="profComparativo"></div>
+    </div>
+    <p class="section-title">Profissionais</p>
+    <div class="prof-grid" id="profGrid"></div>
   </div>
 
   <div id="tabNotas" class="tab-panel">
