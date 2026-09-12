@@ -1467,6 +1467,19 @@
     months.sort(function(a,b){ return b-a; });
     return months.map(function(d){ return {value: monthOptionValue(d), label: monthOptionLabel(d)}; });
   }
+  // Traduz o valor bruto da coluna "equipe_unidade" (ex.: "EMULTI CENTRO
+  // DA CIDADE - Centro") pro rótulo curto da equipe (ex.: "Centro"),
+  // usando o mesmo matchKeyword de EQUIPES/filtrarLinhasPorEquipe. Usado
+  // pra exibir a equipe na lista de Busca-Ativa quando "Todas" as equipes
+  // estão selecionadas ao mesmo tempo.
+  function equipeLabelFromRaw(raw){
+    var valor = normalizeText(raw);
+    for(var i=0;i<EQUIPES.length;i++){
+      var kw = normalizeText(EQUIPES[i].matchKeyword || EQUIPES[i].suffix);
+      if(valor.indexOf(kw) !== -1) return EQUIPES[i].suffix;
+    }
+    return String(raw||"").trim() || "—";
+  }
   // ---------- Busca-Ativa (aba M1) ----------
   // Lista, calculada aqui mesmo, das pessoas com ATENDIMENTO individual em
   // atraso: mais de 30 dias desde a última consulta, mas ainda dentro da
@@ -1478,20 +1491,29 @@
   // pra mais atual (quem está mais atrasado aparece primeiro); em caso de
   // empate na data, 2º critério é a quantidade de consultas, crescente.
   function buscaAtivaCompute(){
-    var pessoasSet = {}; // nome em maiúsculas -> {nome, count, ultima:Date}
+    var pessoasSet = {}; // nome em maiúsculas -> {nome, count, ultima:Date, equipe, profissional}
     var atCached = latestSheets[suffixedName("Atendimentos")];
     if(atCached){
       var iData = colIndex(atCached.headers, "data_hora");
       var iNome = colIndex(atCached.headers, "nome");
+      var iProf = colIndex(atCached.headers, "profissional");
+      var iEquipe = equipeColIndex(atCached.headers);
       if(iData >= 0 && iNome >= 0){
         atCached.rows.forEach(function(r){
           var nome = String(r[iNome]||"").trim();
           var d = parseBRDate(r[iData]);
           if(!nome || !d) return;
           var chave = nome.toUpperCase();
-          if(!pessoasSet[chave]) pessoasSet[chave] = {nome:nome, count:0, ultima:null};
+          if(!pessoasSet[chave]) pessoasSet[chave] = {nome:nome, count:0, ultima:null, equipe:'', profissional:''};
           pessoasSet[chave].count++;
-          if(!pessoasSet[chave].ultima || d > pessoasSet[chave].ultima) pessoasSet[chave].ultima = d;
+          // Equipe/Profissional guardados são sempre os da ÚLTIMA consulta
+          // (a mesma que aparece na coluna "Última Consulta"), não os do
+          // primeiro atendimento encontrado.
+          if(!pessoasSet[chave].ultima || d > pessoasSet[chave].ultima){
+            pessoasSet[chave].ultima = d;
+            pessoasSet[chave].equipe = iEquipe >= 0 ? equipeLabelFromRaw(r[iEquipe]) : '—';
+            pessoasSet[chave].profissional = iProf >= 0 ? (String(r[iProf]||"").trim() || '—') : '—';
+          }
         });
       }
     }
@@ -1503,7 +1525,7 @@
       .map(function(p){
         var ultimaDiaZero = new Date(p.ultima.getFullYear(), p.ultima.getMonth(), p.ultima.getDate());
         var dias = Math.round((fimMes - ultimaDiaZero) / MS_DIA);
-        return {nome:p.nome, count:p.count, ultima:p.ultima, dias:dias};
+        return {nome:p.nome, count:p.count, ultima:p.ultima, dias:dias, equipe:p.equipe, profissional:p.profissional};
       })
       // Janela: mais de 30 dias e no máximo 120 dias sem atendimento,
       // contados até o último dia do mês atual.
@@ -1514,8 +1536,8 @@
         return a.count - b.count; // 2º critério: menos consultas primeiro
       });
     return {
-      headers: ["Nome","Última Consulta","Dias sem Atendimento","Atendimentos"],
-      rows: lista.map(function(p){ return [p.nome, fmtBRDate(p.ultima), p.dias, p.count]; })
+      headers: ["Nome","Equipe","Profissional","Última Consulta","Dias sem Atendimento","Atendimentos"],
+      rows: lista.map(function(p){ return [p.nome, p.equipe, p.profissional, fmtBRDate(p.ultima), p.dias, p.count]; })
     };
   }
   function populateSheetsCache(wb){
