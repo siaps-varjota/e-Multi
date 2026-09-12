@@ -29,13 +29,18 @@
   }
   h1,h2,h3,.serif{font-family:'Fraunces',serif;}
 
-  /* ---------- Topbar ---------- */
+  /* ---------- Header + Tabbar (grudados, rolam e "grudam" juntos) ---------- */
+  /* O sticky fica no WRAPPER, não só no .topbar — assim o menu de abas
+     nunca passa por baixo do cabeçalho: os dois formam um bloco único que
+     gruda no topo ao rolar a página. */
+  .header-group{
+    position:sticky;top:0;z-index:5;
+  }
   .topbar{
     background:linear-gradient(120deg,var(--header-bg),var(--header-bg-2));
     color:var(--header-ink);
     padding:14px 40px;
     display:flex;justify-content:space-between;align-items:center;gap:24px;flex-wrap:wrap;
-    position:sticky;top:0;z-index:5;
   }
   .topbar-left .kicker{
     font-size:11px;letter-spacing:1.4px;text-transform:uppercase;
