@@ -394,7 +394,7 @@
   var CLASS_ARC_HEX_OV = {"Regular":"#BF2929","Suficiente":"#CF7E09","Bom":"#2A894A","Ótimo":"#1B59B5"};
 
   // ---------- Listas complementares ----------
-  function m1ListNames(){ return ["Atendimentos", "Participantes Ativ. Coletiva", "Pessoas atendidas"].map(suffixedName); }
+  function m1ListNames(){ return ["Atendimentos", "Participantes Ativ. Coletiva", "Pessoas atendidas", "Busca-Ativa"].map(suffixedName); }
   function m2ListNames(){ return ["Atendimentos", "Resumo Reuniões", "Resumo Atividade Coletiva"].map(suffixedName); }
   var latestSheets = {}; // nome da aba -> {headers, rows} | {error}
   // Filtro de mês (multisseleção) das listas das abas M1/M2: por lista
@@ -1467,6 +1467,57 @@
     months.sort(function(a,b){ return b-a; });
     return months.map(function(d){ return {value: monthOptionValue(d), label: monthOptionLabel(d)}; });
   }
+  // ---------- Busca-Ativa (aba M1) ----------
+  // Lista, calculada aqui mesmo, das pessoas com ATENDIMENTO individual em
+  // atraso: mais de 30 dias desde a última consulta, mas ainda dentro da
+  // janela de 120 dias (a mesma janela usada pelo M1 — ver JANELA_MESES),
+  // sempre contando a partir do ÚLTIMO DIA DO MÊS ATUAL (não do dia de
+  // hoje, nem do mês filtrado no topo da página) — assim a lista mostra
+  // sempre quem vai "sair da janela" do indicador dentro do mês corrente.
+  // Critério de ordenação: 1º a data da última consulta, da mais antiga
+  // pra mais atual (quem está mais atrasado aparece primeiro); em caso de
+  // empate na data, 2º critério é a quantidade de consultas, crescente.
+  function buscaAtivaCompute(){
+    var pessoasSet = {}; // nome em maiúsculas -> {nome, count, ultima:Date}
+    var atCached = latestSheets[suffixedName("Atendimentos")];
+    if(atCached){
+      var iData = colIndex(atCached.headers, "data_hora");
+      var iNome = colIndex(atCached.headers, "nome");
+      if(iData >= 0 && iNome >= 0){
+        atCached.rows.forEach(function(r){
+          var nome = String(r[iNome]||"").trim();
+          var d = parseBRDate(r[iData]);
+          if(!nome || !d) return;
+          var chave = nome.toUpperCase();
+          if(!pessoasSet[chave]) pessoasSet[chave] = {nome:nome, count:0, ultima:null};
+          pessoasSet[chave].count++;
+          if(!pessoasSet[chave].ultima || d > pessoasSet[chave].ultima) pessoasSet[chave].ultima = d;
+        });
+      }
+    }
+    var hoje = new Date();
+    // Fim do mês atual, zerado na hora (comparação só por dia).
+    var fimMes = new Date(hoje.getFullYear(), hoje.getMonth()+1, 0);
+    var MS_DIA = 24*60*60*1000;
+    var lista = Object.keys(pessoasSet).map(function(k){ return pessoasSet[k]; })
+      .map(function(p){
+        var ultimaDiaZero = new Date(p.ultima.getFullYear(), p.ultima.getMonth(), p.ultima.getDate());
+        var dias = Math.round((fimMes - ultimaDiaZero) / MS_DIA);
+        return {nome:p.nome, count:p.count, ultima:p.ultima, dias:dias};
+      })
+      // Janela: mais de 30 dias e no máximo 120 dias sem atendimento,
+      // contados até o último dia do mês atual.
+      .filter(function(p){ return p.dias > 30 && p.dias <= 120; })
+      .sort(function(a,b){
+        var diffData = a.ultima - b.ultima;
+        if(diffData !== 0) return diffData; // mais antiga primeiro
+        return a.count - b.count; // 2º critério: menos consultas primeiro
+      });
+    return {
+      headers: ["Nome","Última Consulta","Dias sem Atendimento","Atendimentos"],
+      rows: lista.map(function(p){ return [p.nome, fmtBRDate(p.ultima), p.dias, p.count]; })
+    };
+  }
   function populateSheetsCache(wb){
     latestSheets = {};
     wb.SheetNames.forEach(function(name){
@@ -1485,14 +1536,22 @@
     // pessoasAtendidasParaMeses. Tem filtro de mês PRÓPRIO, independente
     // do filtro de Mês do topo da página.
     var isPessoasAtendidas = (name === suffixedName("Pessoas atendidas"));
+    // "Busca-Ativa" (só na aba M1): outra lista calculada aqui mesmo — ver
+    // buscaAtivaCompute — sem filtro de mês próprio, pois a janela (31 a
+    // 120 dias sem atendimento, contados do fim do mês atual) já é fixa.
+    var isBuscaAtiva = (name === suffixedName("Busca-Ativa"));
     var cached = isPessoasAtendidas
       ? pessoasAtendidasParaMeses(listMonthFilters[name] || [])
-      : latestSheets[name];
-    if(isPessoasAtendidas) latestSheets[name] = cached;
+      : isBuscaAtiva
+        ? buscaAtivaCompute()
+        : latestSheets[name];
+    if(isPessoasAtendidas || isBuscaAtiva) latestSheets[name] = cached;
     var body;
     var hasTable = false;
     if(!cached){
       body = '<div class="list-placeholder">Não encontramos uma aba chamada "'+escapeHtml(name)+'" na planilha publicada.</div>';
+    } else if(!cached.rows.length && isBuscaAtiva){
+      body = '<div class="list-placeholder">Nenhum paciente na janela de busca ativa no momento (mais de 30 e até 120 dias sem atendimento, considerando o fim do mês atual).</div>';
     } else if(!cached.rows.length && !isPessoasAtendidas){
       body = '<div class="list-placeholder">Esta lista está vazia.</div>';
     } else {
