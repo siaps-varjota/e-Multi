@@ -1242,11 +1242,44 @@
     });
   }
 
+  // Plugin do Chart.js que desenha o TOTAL (soma dos segmentos) logo após
+  // o fim de cada barra empilhada, tanto no modo Valores Absolutos quanto
+  // no modo Percentual (nesse caso, mostra o total real de pacientes, não
+  // "100%", que seria sempre igual em toda barra).
+  var profTotalLabelPlugin = {
+    id: 'profTotalLabel',
+    afterDatasetsDraw: function(chart){
+      var cfg = chart.options.plugins && chart.options.plugins.profTotalLabel;
+      var totals = cfg && cfg.totals;
+      if(!totals || !chart.data.datasets.length) return;
+      var meta = chart.getDatasetMeta(chart.data.datasets.length - 1);
+      if(!meta || !meta.data) return;
+      var ctx = chart.ctx;
+      ctx.save();
+      ctx.font = "600 11px 'Inter', system-ui, -apple-system, sans-serif";
+      ctx.fillStyle = '#1B2E27';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      meta.data.forEach(function(el, idx){
+        var total = totals[idx];
+        if(total === null || total === undefined) return;
+        var pos = el.getProps ? el.getProps(['x','y'], true) : el;
+        ctx.fillText(fmtInt(total), pos.x + 6, pos.y);
+      });
+      ctx.restore();
+    }
+  };
+
   function renderProfMainChart(lista){
     var canvas = document.getElementById('profStackedChart');
     if(!canvas || typeof Chart === 'undefined') return;
     var colors = getProfColors();
     var chartData = profMainChartData(lista, profViewMode);
+    // Total de pacientes por profissional (soma dos 4 segmentos) — exibido
+    // no fim da barra pelo profTotalLabelPlugin, independente do modo.
+    var totals = lista.map(function(p){
+      return p.totalPacientes != null ? p.totalPacientes : (p.c1+p.c2+p.c3+p.c4);
+    });
     if(profChartMain){ profChartMain.destroy(); profChartMain = null; }
     profChartMain = new Chart(canvas.getContext('2d'), {
       type: 'bar',
@@ -1256,10 +1289,15 @@
           return {label: lbl, data: chartData[i], backgroundColor: colors[i]};
         })
       },
+      plugins: [profTotalLabelPlugin],
       options: {
         indexAxis: 'y',
         responsive: true,
         maintainAspectRatio: false,
+        // Espaço reservado à direita das barras pro rótulo do total não
+        // ficar cortado (principalmente no modo Percentual, onde toda
+        // barra vai até o fim da escala).
+        layout: { padding: { right: 42 } },
         scales: {
           x: {
             stacked: true,
@@ -1269,11 +1307,17 @@
           y: { stacked: true }
         },
         plugins: {
+          profTotalLabel: { totals: totals },
           tooltip: {
             callbacks: {
               label: function(ctx){
                 var unit = profViewMode==='percent' ? '%' : ' pacientes';
                 return ' '+ctx.dataset.label+': '+ctx.raw+unit;
+              },
+              footer: function(items){
+                var idx = items && items.length ? items[0].dataIndex : null;
+                if(idx === null || totals[idx] == null) return '';
+                return 'Total: '+fmtInt(totals[idx])+' pacientes';
               }
             }
           }
