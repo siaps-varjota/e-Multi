@@ -547,9 +547,35 @@
   }
   .list-placeholder code{background:var(--paper);border-radius:4px;padding:1px 5px;font-size:11.5px;}
 
+  /* ---------- Aba Desempenho Profissional ---------- */
+  .prof-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px;}
+  .prof-card{display:flex;flex-direction:column;}
+  .prof-card-head{display:flex;align-items:center;gap:12px;margin-bottom:14px;}
+  .prof-avatar{
+    width:40px;height:40px;border-radius:50%;background:var(--header-bg);color:#fff;
+    display:flex;align-items:center;justify-content:center;font-weight:700;font-size:15px;flex:0 0 auto;
+  }
+  .prof-card-head h4{margin:0;font-size:15px;font-weight:600;color:var(--ink);}
+  .prof-card-head .prof-sub{font-size:11.5px;color:var(--ink-soft);}
+  .prof-kpis{
+    display:flex;justify-content:space-between;gap:8px;background:var(--paper);
+    border:1px solid var(--line);border-radius:8px;padding:10px 12px;margin-bottom:14px;text-align:center;
+  }
+  .prof-kpi{flex:1;}
+  .prof-kpi label{display:block;font-size:10.5px;color:var(--ink-soft);margin-bottom:2px;}
+  .prof-kpi span{font-size:15px;font-weight:700;color:var(--ink);}
+  .prof-comp-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+  .prof-comp-row:last-child{margin-bottom:0;}
+  .prof-comp-name{
+    flex:0 0 170px;font-size:12.5px;font-weight:600;color:var(--ink);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  .prof-comp-total{flex:0 0 34px;text-align:right;font-size:12px;font-weight:600;color:var(--ink-soft);}
+
   @media (max-width:880px){
     .topbar{padding:20px 20px;}
     .topbar-right{width:100%;justify-content:space-between;}
     .tabbar{padding:0 20px;}
     .main{padding:20px 20px 50px;}
+    .prof-comp-name{flex-basis:100px;}
   }
