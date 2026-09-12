@@ -681,13 +681,13 @@
   // colunas de nome diferente (ver profRosterColIndex).
   var PROFISSIONAIS_SHEET_NAME = "PROFISSIONAIS";
   // lista de {nome, equipeKey, categoria} — uma entrada por
-  // profissional+equipe cadastrados na aba.
+  // profissional+equipe cadastrados na aba (um profissional que atua em
+  // 2 equipes gera 2 entradas, uma pra cada).
   var profissionaisRoster = [];
-  // Acha a coluna certa tentando primeiro nomes exatos (mesma convenção
-  // das outras abas: minúsculo, sem acento, "snake_case") e, não
-  // achando, cai pra uma busca por palavra-chave no cabeçalho — protege
-  // contra a aba PROFISSIONAIS usar um nome de coluna um pouco diferente
-  // do esperado.
+  // Acha a coluna certa tentando primeiro nomes exatos e, não achando,
+  // cai pra uma busca por palavra-chave no cabeçalho — protege contra a
+  // aba PROFISSIONAIS usar um nome de coluna um pouco diferente do
+  // esperado.
   function profRosterColIndex(header, candidatos, fallbackKeyword){
     for(var i=0;i<candidatos.length;i++){
       var idx = colIndex(header, candidatos[i]);
@@ -700,24 +700,35 @@
     }
     return -1;
   }
+  // Layout real da aba (ver print do usuário): "Nome do Profissional" |
+  // "CATEGORIA PROFISSIONAL" | "Equipe 1" | "Equipe 2" (podendo ter mais
+  // colunas "Equipe N" à direita) — cada profissional pode ter 1 ou 2
+  // equipes preenchidas (2 quando atua nas duas). Por isso, ao contrário
+  // das outras colunas, TODAS as colunas cujo cabeçalho contenha
+  // "EQUIPE" são lidas, e cada uma preenchida na linha vira uma entrada
+  // separada no roster (mesmo profissional, equipes diferentes).
   function parseProfissionaisCsv(csvText){
     var rows = parseCsv(csvText);
     if(!rows.length) return [];
     var header = rows[0];
-    var iNome = profRosterColIndex(header, ["profissional","nome_profissional","nome"], "PROFISSIONAL");
-    var iEquipe = profRosterColIndex(header, ["equipe_unidade","equipe"], "EQUIPE");
-    var iCategoria = profRosterColIndex(header, ["categoria_profissional","categoria_prof","categoria","cbo"], "CATEGORIA");
+    var iNome = profRosterColIndex(header, ["Nome do Profissional","profissional","nome_profissional","nome"], "PROFISSIONAL");
+    var iCategoria = profRosterColIndex(header, ["CATEGORIA PROFISSIONAL","categoria_profissional","categoria_prof","categoria","cbo"], "CATEGORIA");
+    var equipeCols = [];
+    header.forEach(function(h, idx){
+      if(normalizeText(h).indexOf("EQUIPE") !== -1) equipeCols.push(idx);
+    });
     if(iNome < 0) return [];
     var lista = [];
     rows.slice(1).forEach(function(r){
       var nome = String(r[iNome]||"").trim();
       if(!nome) return;
-      var equipeVal = iEquipe>=0 ? normalizeText(r[iEquipe]) : "";
-      var equipeMatch = EQUIPES.filter(function(eq){ return equipeVal.indexOf(normalizeText(eq.matchKeyword)) !== -1; })[0];
-      lista.push({
-        nome: nome,
-        equipeKey: equipeMatch ? equipeMatch.key : null,
-        categoria: iCategoria>=0 ? String(r[iCategoria]||"").trim() : ""
+      var categoria = iCategoria>=0 ? String(r[iCategoria]||"").trim() : "";
+      equipeCols.forEach(function(iEquipe){
+        var valorEquipe = normalizeText(r[iEquipe]);
+        if(!valorEquipe) return; // "Equipe 2" costuma vir vazia pra quem só atua em 1 equipe
+        var equipeMatch = EQUIPES.filter(function(eq){ return valorEquipe.indexOf(normalizeText(eq.matchKeyword)) !== -1; })[0];
+        if(!equipeMatch) return;
+        lista.push({nome: nome, equipeKey: equipeMatch.key, categoria: categoria});
       });
     });
     return lista;
