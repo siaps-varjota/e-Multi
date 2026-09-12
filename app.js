@@ -989,6 +989,117 @@
     };
   }
 
+  // ---------- Desempenho Profissional ----------
+  // Agrupa a Lista de Atendimentos (já filtrada por equipe no fetch) por
+  // "profissional" e, dentro de cada profissional, conta quantos
+  // atendimentos cada paciente (por nome) teve no período — igual à
+  // lógica do protótipo "Profissionais.html", mas com dados reais em vez
+  // de mock. "4+" agrupa 4 ou mais consultas no período.
+  var PROF_COLORS = ['var(--pill-regular)','var(--pill-suficiente)','var(--pill-bom)','var(--pill-otimo)'];
+  var PROF_LABELS = ['1 consulta','2 consultas','3 consultas','4+ consultas'];
+
+  function calcularPerformanceProfissionais(wb, periodo){
+    var ws = wb.Sheets[suffixedName("Atendimentos")];
+    var rows = ws ? sheetToRows(ws) : [];
+    var header = rows[0] || [];
+    var iData = colIndex(header, "data_hora");
+    var iNome = colIndex(header, "nome");
+    var iProf = colIndex(header, "profissional");
+    if(iProf < 0) return [];
+
+    var porProf = {}; // profissional -> {nomeMaiusculo: contagem}
+    rows.slice(1).forEach(function(r){
+      var nome = String(r[iNome]||"").trim();
+      var prof = String(r[iProf]||"").trim();
+      if(!nome || !prof) return;
+      if(!withinPeriod(parseBRDate(r[iData]), periodo.inicio, periodo.fim)) return;
+      if(!porProf[prof]) porProf[prof] = {};
+      var chave = nome.toUpperCase();
+      porProf[prof][chave] = (porProf[prof][chave]||0) + 1;
+    });
+
+    return Object.keys(porProf).map(function(prof){
+      var pacientes = porProf[prof];
+      var c1=0, c2=0, c3=0, c4=0, totalAtend=0;
+      Object.keys(pacientes).forEach(function(k){
+        var n = pacientes[k];
+        totalAtend += n;
+        if(n===1) c1++; else if(n===2) c2++; else if(n===3) c3++; else c4++;
+      });
+      var totalPacientes = Object.keys(pacientes).length;
+      var recorrentes = c2+c3+c4;
+      return {
+        nome: prof, c1:c1, c2:c2, c3:c3, c4:c4,
+        totalPacientes: totalPacientes,
+        totalAtendimentos: totalAtend,
+        taxaRetorno: totalPacientes ? (recorrentes/totalPacientes*100) : null,
+        media: totalPacientes ? (totalAtend/totalPacientes) : null
+      };
+    }).filter(function(p){ return p.totalPacientes > 0; })
+      .sort(function(a,b){ return b.totalPacientes - a.totalPacientes; });
+  }
+
+  function profSegments(p){
+    return [
+      {label:PROF_LABELS[0], value:p.c1, color:PROF_COLORS[0]},
+      {label:PROF_LABELS[1], value:p.c2, color:PROF_COLORS[1]},
+      {label:PROF_LABELS[2], value:p.c3, color:PROF_COLORS[2]},
+      {label:PROF_LABELS[3], value:p.c4, color:PROF_COLORS[3]}
+    ];
+  }
+  // Só a barra empilhada, sem legenda embutida (usada no comparativo, uma
+  // legenda só serve pra todas as linhas — ver renderPerformanceProfissionais).
+  function barOnlyHTML(segments, total){
+    var t = total || segments.reduce(function(s,x){return s+(x.value||0);},0);
+    return '<div class="stackbar">' + segments.map(function(s){
+      var pct = t>0 ? (s.value/t*100) : 0;
+      return '<div class="seg" style="width:'+pct+'%;background:'+s.color+'"></div>';
+    }).join('') + '</div>';
+  }
+
+  function renderPerformanceProfissionais(lista){
+    var compEl = document.getElementById('profComparativo');
+    if(compEl){
+      if(!lista.length){
+        compEl.innerHTML = '<p class="footnote">Nenhum atendimento com profissional identificado neste período.</p>';
+      } else {
+        var legendaHtml = '<div class="legend" style="margin-bottom:16px;">' + PROF_LABELS.map(function(lbl,i){
+          return '<span class="legend-item"><i style="background:'+PROF_COLORS[i]+'"></i><span class="legend-label">'+lbl+'</span></span>';
+        }).join('') + '</div>';
+        var linhasHtml = lista.map(function(p){
+          return '<div class="prof-comp-row">'
+            + '<span class="prof-comp-name" title="'+escapeHtml(p.nome)+'">'+escapeHtml(p.nome)+'</span>'
+            + '<div style="flex:1;">'+barOnlyHTML(profSegments(p), p.totalPacientes)+'</div>'
+            + '<span class="prof-comp-total">'+fmtInt(p.totalPacientes)+'</span>'
+            + '</div>';
+        }).join('');
+        compEl.innerHTML = legendaHtml + linhasHtml;
+      }
+    }
+
+    var gridEl = document.getElementById('profGrid');
+    if(!gridEl) return;
+    if(!lista.length){
+      gridEl.innerHTML = '<p class="footnote">Nenhum atendimento com profissional identificado neste período.</p>';
+      return;
+    }
+    gridEl.innerHTML = lista.map(function(p){
+      var corRetorno = p.taxaRetorno==null ? 'var(--ink-soft)' : (p.taxaRetorno>=50 ? 'var(--pill-bom)' : 'var(--pill-regular)');
+      return '<div class="card prof-card">'
+        + '<div class="prof-card-head">'
+        +   '<div class="prof-avatar">'+escapeHtml((p.nome.trim().charAt(0)||'?').toUpperCase())+'</div>'
+        +   '<div><h4>'+escapeHtml(p.nome)+'</h4><span class="prof-sub">'+fmtInt(p.totalAtendimentos)+' atendimentos no período</span></div>'
+        + '</div>'
+        + '<div class="prof-kpis">'
+        +   '<div class="prof-kpi"><label>Pacientes</label><span>'+fmtInt(p.totalPacientes)+'</span></div>'
+        +   '<div class="prof-kpi"><label>Retorno</label><span style="color:'+corRetorno+';">'+(p.taxaRetorno==null?'—':fmtDec(p.taxaRetorno,0)+'%')+'</span></div>'
+        +   '<div class="prof-kpi"><label>Média/pac.</label><span>'+(p.media==null?'—':fmtDec(p.media,1))+'</span></div>'
+        + '</div>'
+        + stackbar(profSegments(p), p.totalPacientes)
+        + '</div>';
+    }).join('');
+  }
+
   // ---------- Listas ----------
   // "Pessoas atendidas" com filtro de mês PRÓPRIO (independente do filtro
   // de Mês do topo): deduplica direto de Atendimentos + Participantes
@@ -2512,7 +2623,7 @@
   }
 
   // ---------- Tabs ----------
-  var FILTER_BAR_TABS = {geral:true, m1:true, m2:true, tendencia:true};
+  var FILTER_BAR_TABS = {geral:true, m1:true, m2:true, tendencia:true, profissionais:true};
   document.querySelectorAll('.tab').forEach(function(btn){
     btn.addEventListener('click', function(){
       document.querySelectorAll('.tab').forEach(function(b){ b.classList.toggle('active', b===btn); });
@@ -2525,8 +2636,12 @@
   });
 
   // ---------- Render ----------
-  function renderDashboard(record, serieTendencia){
+  function renderDashboard(record, serieTendencia, performanceProfissionais){
     serieTendencia = serieTendencia || [];
+    // Ao reabrir uma leitura antiga do histórico (sem recalcular a partir
+    // do cache bruto), a aba de Desempenho Profissional fica vazia — só é
+    // recalculada quando vem de aplicarMesReferencia (ver chamadas abaixo).
+    renderPerformanceProfissionais(performanceProfissionais || []);
     document.getElementById('statusState').style.display = 'none';
     populateQuadSelect();
     document.getElementById('topEquipe').textContent = record.equipe || '—';
@@ -2846,7 +2961,7 @@
   function aplicarMesReferencia(saveHistory){
     if(!latestWb) return;
 
-    var extracted, periodo;
+    var extracted, periodo, periodoDatas;
     if(refMonthDates.length === 1){
       // Um único mês escolhido: NÃO é só aquele mês isolado — é a janela
       // móvel de JANELA_MESES meses TERMINANDO nesse mês (ex.: maio →
@@ -2855,6 +2970,7 @@
       var janelaMes = calcularJanelaPeriodo(refMonthDates[0]);
       extracted = calcularJanelaComOverride(latestWb, refMonthDates[0]);
       periodo = {inicio: fmtBRDate(janelaMes.inicio), fim: fmtBRDate(janelaMes.fim)};
+      periodoDatas = {inicio: janelaMes.inicio, fim: janelaMes.fim};
     } else if(refMonthDates.length > 1){
       // Vários meses escolhidos: o M1/M2 de CADA mês marcado já é o valor
       // com a janela móvel de JANELA_MESES meses terminando naquele mês
@@ -2873,6 +2989,10 @@
       periodo = {
         inicio: fmtBRDate(periodoMesUnico(refMonthDates[0]).inicio),
         fim: fmtBRDate(periodoMesUnico(refMonthDates[refMonthDates.length-1]).fim)
+      };
+      periodoDatas = {
+        inicio: periodoMesUnico(refMonthDates[0]).inicio,
+        fim: periodoMesUnico(refMonthDates[refMonthDates.length-1]).fim
       };
     } else {
       // Nenhum mês escolhido: média dos 4 meses do quadrimestre selecionado.
@@ -2895,7 +3015,10 @@
         inicio: fmtBRDate(periodoMesUnico(meses[0]).inicio),
         fim: fmtBRDate(periodoMesUnico(meses[3]).fim)
       };
+      periodoDatas = {inicio: periodoMesUnico(meses[0]).inicio, fim: periodoMesUnico(meses[3]).fim};
     }
+
+    var performanceProfissionais = calcularPerformanceProfissionais(latestWb, periodoDatas);
 
     populateSheetsCache(latestWb);
     // "Pessoas atendidas" agora NÃO usa mais extracted.pessoasAtendidas
@@ -2924,7 +3047,7 @@
         notes: extracted.notes,
         periodo: periodo
       };
-      renderDashboard(record, serie);
+      renderDashboard(record, serie, performanceProfissionais);
       return;
     }
 
@@ -2938,7 +3061,7 @@
     if(lastForEquipe && sameData(lastForEquipe.data, extracted.data)){
       currentRecordId = lastForEquipe.id;
       fetchStatusEl.textContent = 'Dados sem alterações desde a última leitura.';
-      renderDashboard(lastForEquipe, serie);
+      renderDashboard(lastForEquipe, serie, performanceProfissionais);
       return;
     }
 
@@ -2955,7 +3078,7 @@
     saveHistoryArray(arr).then(function(){
       currentRecordId = record.id;
       fetchStatusEl.textContent = 'Planilha lida e calculada com sucesso.';
-      renderDashboard(record, serie);
+      renderDashboard(record, serie, performanceProfissionais);
     });
   }
 
