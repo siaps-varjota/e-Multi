@@ -1489,11 +1489,24 @@
       return;
     }
     var linhas = [];
+    // Estatísticas de divergência por indicador — usadas no comentário
+    // logo abaixo da tabela (qual indicador diverge mais vezes e qual a
+    // divergência média de cada um). Um mês só conta como "divergente"
+    // se a diferença (oficial − calculado), já arredondada nas 2 casas
+    // exibidas na tabela, for diferente de zero — assim o comentário bate
+    // exatamente com o que a coluna "Diferença" mostra.
+    var statM1 = {meses:0, divergentes:0, somaAbs:0};
+    var statM2 = {meses:0, divergentes:0, somaAbs:0};
     // Mais recente primeiro, mesma ordem da tabela de Série histórica.
     serieTendencia.slice().reverse().forEach(function(p){
       var mesLabel = monthShortLabel(p.mes);
       if(p.m1Oficial){
         var difM1 = (p.m1!=null && p.m1Calculado!=null) ? (p.m1 - p.m1Calculado) : null;
+        if(difM1!=null){
+          statM1.meses++;
+          statM1.somaAbs += Math.abs(difM1);
+          if(fmtDec(Math.abs(difM1),2) !== fmtDec(0,2)) statM1.divergentes++;
+        }
         linhas.push([
           mesLabel, 'M1',
           fmtInt(p.numeradorM1Calculado)+' / '+fmtInt(p.denominadorM1Calculado), p.m1Calculado!=null ? fmtDec(p.m1Calculado,2) : '—',
@@ -1503,6 +1516,11 @@
       }
       if(p.m2Oficial){
         var difM2 = (p.m2!=null && p.m2Calculado!=null) ? (p.m2 - p.m2Calculado) : null;
+        if(difM2!=null){
+          statM2.meses++;
+          statM2.somaAbs += Math.abs(difM2);
+          if(fmtDec(Math.abs(difM2),2) !== fmtDec(0,2)) statM2.divergentes++;
+        }
         linhas.push([
           mesLabel, 'M2',
           fmtInt(p.numeradorM2Calculado)+' / '+fmtInt(p.denominadorM2Calculado), p.m2Calculado!=null ? fmtDec(p.m2Calculado,2)+'%' : '—',
@@ -1562,6 +1580,39 @@
         doc.text('Página '+doc.internal.getCurrentPageInfo().pageNumber, pageWidth-margin, pageHeight-14, {align:'right'});
       }
     });
+
+    // ---- Comentário: indicador com mais divergência + média por indicador ----
+    var mediaM1 = statM1.meses ? (statM1.somaAbs/statM1.meses) : null;
+    var mediaM2 = statM2.meses ? (statM2.somaAbs/statM2.meses) : null;
+    var comentario;
+    if(statM1.divergentes === 0 && statM2.divergentes === 0){
+      comentario = 'Nenhum mês apresentou divergência entre o valor calculado pelo painel e o valor oficial — M1 e M2 bateram em todos os meses comparados.';
+    } else if(statM1.divergentes > statM2.divergentes){
+      comentario = 'M1 é o indicador com maior número de divergências ('+statM1.divergentes+' de '+statM1.meses+' meses, contra '+statM2.divergentes+' de '+statM2.meses+' em M2).';
+    } else if(statM2.divergentes > statM1.divergentes){
+      comentario = 'M2 é o indicador com maior número de divergências ('+statM2.divergentes+' de '+statM2.meses+' meses, contra '+statM1.divergentes+' de '+statM1.meses+' em M1).';
+    } else {
+      comentario = 'M1 e M2 empatam no número de meses com divergência ('+statM1.divergentes+' de '+statM1.meses+' meses cada).';
+    }
+    comentario += ' Divergência média (oficial − calculado, em módulo) — M1: '+(mediaM1!=null ? fmtDec(mediaM1,2) : '—')
+      +' | M2: '+(mediaM2!=null ? fmtDec(mediaM2,2)+'%' : '—')+'.';
+
+    var yComentario = (doc.lastAutoTable ? doc.lastAutoTable.finalY : y) + 22;
+    var linhasComentario = doc.splitTextToSize(comentario, pageWidth-margin*2);
+    var alturaComentario = 14 + 12*linhasComentario.length;
+    if(yComentario + alturaComentario > pageHeight - margin){
+      doc.addPage();
+      yComentario = margin + 10;
+    }
+    doc.setFont('helvetica','bold');
+    doc.setFontSize(9.5);
+    doc.setTextColor(21,63,53);
+    doc.text('Resumo da divergência', margin, yComentario);
+    yComentario += 14;
+    doc.setFont('helvetica','normal');
+    doc.setFontSize(8.8);
+    doc.setTextColor(81,96,90);
+    doc.text(linhasComentario, margin, yComentario);
 
     var arquivo = 'divergencia_oficial__'+slugifyFileName(equipeLabel)+'__'+slugifyFileName(new Date().toLocaleDateString('pt-BR'))+'.pdf';
     doc.save(arquivo);
